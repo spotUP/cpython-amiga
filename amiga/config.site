@@ -1,0 +1,83 @@
+# config.site for m68k-amigaos (AmigaOS 3.x, ixemul 48.2 + ixemul-vtcon,
+# bebbo gcc 6.5). Answers configure cannot find out when cross compiling,
+# and overrides where a link test would find the wrong thing. Each answer
+# says why. Used by tools/configure-m68k.sh.
+
+# --- run-time tests (cross: configure cannot run them) ----------------------
+ac_cv_file__dev_ptmx=no            # BSD ptys on PTY: (vtcon P6), no /dev/ptmx
+ac_cv_file__dev_ptc=no
+ac_cv_buggy_getaddrinfo=no         # compat getaddrinfo (neovim-amiga netdb.c)
+ac_cv_have_long_long_format=yes    # ixemul printf has %lld (48.2)
+ac_cv_wchar_t_signed=yes
+ac_cv_rshift_extends_sign=yes      # m68k asr
+ac_cv_x87_double_rounding=no       # soft-float: exact IEEE doubles (see the end)
+ac_cv_computed_gotos=yes           # gcc
+ac_cv_pthread_is_default=no        # no threads at all (--with-pthread-stubs)
+ac_cv_pthread=no
+ac_cv_kpthread=no
+ac_cv_kthread=no
+ac_cv_pthread_system_supported=no
+ac_cv_working_tzset=yes
+
+# --- headers/functions the toolchain has but ixemul does not ----------------
+# bebbo's tree has another C library's <pthread.h>, neovim-amiga's compat a
+# partial one: CPython takes the stubs instead (pthread_stubs.h).
+ac_cv_header_pthread_h=no
+ac_cv_func_pthread_sigmask=no
+ac_cv_func_pthread_kill=no
+ac_cv_func_pthread_getattr_np=no
+ac_cv_func_pthread_condattr_setclock=no
+ac_cv_func_sem_open=no
+ac_cv_func_sem_unlink=no
+ac_cv_func_sem_getvalue=no
+ac_cv_func_sem_timedwait=no
+ac_cv_func_sem_clockwait=no
+# ixemul cannot fork (vfork only; vtcon ledger P7). os.fork is absent;
+# subprocess uses vfork (C4.1).
+ac_cv_func_fork=no
+ac_cv_func_fork1=no
+ac_cv_func_forkpty=no
+ac_cv_func_openpty=no
+# no dynamic loading
+ac_cv_func_dlopen=no
+ac_cv_lib_dl_dlopen=no
+ac_cv_header_dlfcn_h=no
+# headers configure finds in the toolchain's sys-include (another C
+# library's), not ixemul's: their functions are not in ixemul
+ac_cv_header_libintl_h=no
+ac_cv_header_sys_lock_h=no
+ac_cv_header_sys_statvfs_h=no
+
+# --- build shape --------------------------------------------------------------
+MODULE_BUILDTYPE=static
+MACHDEP_OBJS="Python/amigaos.o"
+
+# --- floating point -----------------------------------------------------------
+# Soft-float build (ledger D-6): no FPU instructions at all, so CPython must
+# not set the 68881 precision through fpcr (it would trap on an FPU-less
+# CPU). Soft-float doubles are plain IEEE doubles: no double rounding.
+ac_cv_gcc_asm_for_mc68881=no
+
+# --- the stub pthread types (Include/cpython/pthread_stubs.h) ---------------
+# configure measures them through <pthread.h>, which this build does not use
+ac_cv_sizeof_pthread_t=4           # typedef unsigned pthread_t
+ac_cv_sizeof_pthread_key_t=4       # typedef unsigned pthread_key_t
+ac_cv_pthread_key_t_is_arithmetic_type=yes
+
+# --- no dynamic linker: RTLD_* constants mean nothing (no os.RTLD_*) --------
+ac_cv_have_decl_RTLD_LAZY=no
+ac_cv_have_decl_RTLD_NOW=no
+ac_cv_have_decl_RTLD_GLOBAL=no
+ac_cv_have_decl_RTLD_LOCAL=no
+ac_cv_have_decl_RTLD_NODELETE=no
+ac_cv_have_decl_RTLD_NOLOAD=no
+ac_cv_have_decl_RTLD_DEEPBIND=no
+ac_cv_have_decl_RTLD_MEMBER=no
+
+# --- left out ------------------------------------------------------------------
+# os.ttyname: 3.14 sizes the buffer with sysconf(_SC_TTY_NAME_MAX), which
+# ixemul does not know (os.isatty is there). Ledger "not implemented".
+ac_cv_func_ttyname_r=no
+# locale.nl_langinfo: ixemul's <langinfo.h> has 8 of POSIX's ~55 items, and
+# this build is UTF-8 throughout (_Py_FORCE_UTF8_LOCALE), so leave it out
+ac_cv_header_langinfo_h=no
