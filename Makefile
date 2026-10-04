@@ -21,7 +21,7 @@ B         = build/m68k
 H         = build/host
 J        ?= -j4
 
-.PHONY: all fetch patches host host-test test-stack test-wcstol test-inet compat m68k check-m68k zip dist dist-host-check clean
+.PHONY: all fetch patches host host-test test-stack test-wcstol test-inet test-getentropy compat m68k check-m68k zip dist dist-host-check clean
 all: m68k
 
 # ---- upstream + our patch series ---------------------------------------------
@@ -46,7 +46,12 @@ test-inet: tests/inet_test.c amiga/compat/inet.c
 	cc -Wall -Dinet_ntop=amiga_inet_ntop -Dinet_pton=amiga_inet_pton -c -o $(H)/inet_amiga.o amiga/compat/inet.c
 	cc -Wall -o $(H)/inet_test tests/inet_test.c $(H)/inet_amiga.o
 	$(H)/inet_test
-host-test: host test-stack test-wcstol test-inet
+test-getentropy: tests/getentropy_test.c amiga/compat/getentropy.c
+	mkdir -p $(H)
+	cc -Wall -Dgetentropy=amiga_getentropy -c -o $(H)/getentropy_amiga.o amiga/compat/getentropy.c
+	cc -Wall -o $(H)/getentropy_test tests/getentropy_test.c $(H)/getentropy_amiga.o
+	$(H)/getentropy_test
+host-test: host test-stack test-wcstol test-inet test-getentropy
 	tools/host-tests.sh
 test-stack: $(H)/stack_limits_test
 	$(H)/stack_limits_test
@@ -73,11 +78,13 @@ $(B)/compat/amiga-os.o: $(NVCOMPAT)/amiga-os.c
 $(B)/libamigacompat.a: $(COMPAT_OBJS)
 	rm -f $@
 	$(AAR) rcs $@ $(COMPAT_OBJS)
-# this port's own additions (amiga/compat): newlib libm's errno hook
+# this port's own additions (amiga/compat): newlib libm's errno hook,
+# wcstol, inet_ntop/pton, getentropy
 $(B)/cpyamiga/%.o: amiga/compat/%.c
 	@mkdir -p $(dir $@)
-	$(AGCC) $(ACFLAGS) -c -o $@ $<
-$(B)/libcpyamiga.a: $(B)/cpyamiga/newlib-errno.o $(B)/cpyamiga/wcstol.o $(B)/cpyamiga/inet.o
+	$(AGCC) $(ACFLAGS) -I$(NVCOMPAT)/include -c -o $@ $<
+$(B)/libcpyamiga.a: $(B)/cpyamiga/newlib-errno.o $(B)/cpyamiga/wcstol.o $(B)/cpyamiga/inet.o \
+                  $(B)/cpyamiga/getentropy.o
 	rm -f $@
 	$(AAR) rcs $@ $^
 # wide string functions ixemul lacks: the self-contained members of the
