@@ -6,7 +6,8 @@
 #   C2.6 no emulated TLS: _Py_tss_tstate is a plain global
 #   C2.2 the task-stack hook is linked
 #   C1   only ixemul's libc (no member of the toolchain's newlib libc.a
-#        except the vetted wide-string ones), and the sizes
+#        except the vetted wide-string ones), every stub on a 48.2
+#        vector, and the sizes
 # Prints one [OK]/[FAIL] line per check; exit status = number of failures.
 set -u
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -32,6 +33,8 @@ chk "C2.5 \$STACK: cookie in the executable" "strings -a '$EXE' | grep -qx '\\\$
 chk "C2.6 no emulated TLS (__emutls_*)" "! grep -q '__emutls' '$MAP'"
 chk "C2.2 _PyAmiga_TaskStack linked" "grep -q '_PyAmiga_TaskStack' '$MAP'"
 chk "C1 libc is ixemul's" "grep -q 'ixemul/lib/libc.a' '$MAP'"
+chk "C1 every ixemul stub hits a 48.2 vector of the same name (tools/vector-audit.py)" \
+  "python3 '$ROOT/tools/vector-audit.py' >&2"
 chk "C1 newlib libc.a: wide-string members only" \
   "! grep -oE 'm68k-amigaos/lib/libc\\.a\\([^)]*\\)' '$MAP' | grep -v 'lib_a-w' | grep -q ."
 
