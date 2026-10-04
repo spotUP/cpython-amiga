@@ -7,7 +7,7 @@
 set -eu
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 TAG=${1:-v3.14.7}
-DIR=$ROOT/vendor/cpython
+DIR=${CPYTHON_DIR:-$ROOT/vendor/cpython}
 if [ -e "$DIR" ]; then
 	echo "$DIR exists; move it away first (it may hold unexported commits)" >&2
 	exit 1
