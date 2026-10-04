@@ -1,0 +1,355 @@
+From df13a549aae46085ee937caf420628c46a3c35ce Mon Sep 17 00:00:00 2001
+From: spotUP <retroranksmail@gmail.com>
+Date: Sun, 4 Oct 2026 21:19:06 +0200
+Subject: [PATCH 4/9] gh-127545: Specify minimum PyGC_Head and PyObject
+ alignment (backport)
+
+Backport of python/cpython#135209 (merged to main for 3.15; the 3.13 and
+3.14 backport labels were dropped). The GC keeps flags in the low two
+bits of _gc_prev and PyStackRef tags live in the low bits of object
+pointers; m68k's ABI aligns these structs to 2 bytes, which crashes
+_bootstrap_python (Debian m68k). Applied unchanged from
+https://github.com/python/cpython/pull/135209.diff.
+
+Original author: Finn Thain <fthain@linux-m68k.org>
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ Include/Python.h                              |  13 --
+ Include/cpython/unicodeobject.h               | 120 +++++++++---------
+ Include/internal/pycore_interp_structs.h      |   3 +-
+ Include/object.h                              |   9 +-
+ Include/pymacro.h                             |  82 +++++++-----
+ ...-12-04-10-00-35.gh-issue-127545.t0THjE.rst |   1 +
+ 6 files changed, 122 insertions(+), 106 deletions(-)
+ create mode 100644 Misc/NEWS.d/next/Build/2024-12-04-10-00-35.gh-issue-127545.t0THjE.rst
+
+diff --git a/Include/Python.h b/Include/Python.h
+index db8165e..35fe4f3 100644
+--- a/Include/Python.h
++++ b/Include/Python.h
+@@ -60,14 +60,6 @@
+ #  include <intrin.h>             // __readgsqword()
+ #endif
+ 
+-// Suppress known warnings in Python header files.
+-#if defined(_MSC_VER)
+-// Warning that alignas behaviour has changed. Doesn't affect us, because we
+-// never relied on the old behaviour.
+-#pragma warning(push)
+-#pragma warning(disable: 5274)
+-#endif
+-
+ // Include Python header files
+ #include "pyport.h"
+ #include "pymacro.h"
+@@ -147,9 +139,4 @@
+ #include "cpython/pyfpe.h"
+ #include "cpython/tracemalloc.h"
+ 
+-// Restore warning filter
+-#ifdef _MSC_VER
+-#pragma warning(pop)
+-#endif
+-
+ #endif /* !Py_PYTHON_H */
+diff --git a/Include/cpython/unicodeobject.h b/Include/cpython/unicodeobject.h
+index 3d0414f..3a24572 100644
+--- a/Include/cpython/unicodeobject.h
++++ b/Include/cpython/unicodeobject.h
+@@ -47,6 +47,63 @@ static inline Py_UCS4 Py_UNICODE_LOW_SURROGATE(Py_UCS4 ch) {
+ 
+ /* --- Unicode Type ------------------------------------------------------- */
+ 
++struct _PyUnicodeObject_state {
++    /* If interned is non-zero, the two references from the
++       dictionary to this object are *not* counted in ob_refcnt.
++       The possible values here are:
++           0: Not Interned
++           1: Interned
++           2: Interned and Immortal
++           3: Interned, Immortal, and Static
++       This categorization allows the runtime to determine the right
++       cleanup mechanism at runtime shutdown. */
++#ifdef Py_GIL_DISABLED
++    // Needs to be accessed atomically, so can't be a bit field.
++    unsigned char interned;
++#else
++    unsigned int interned:2;
++#endif
++    /* Character size:
++
++       - PyUnicode_1BYTE_KIND (1):
++
++         * character type = Py_UCS1 (8 bits, unsigned)
++         * all characters are in the range U+0000-U+00FF (latin1)
++         * if ascii is set, all characters are in the range U+0000-U+007F
++         (ASCII), otherwise at least one character is in the range
++         U+0080-U+00FF
++
++       - PyUnicode_2BYTE_KIND (2):
++
++         * character type = Py_UCS2 (16 bits, unsigned)
++         * all characters are in the range U+0000-U+FFFF (BMP)
++         * at least one character is in the range U+0100-U+FFFF
++
++       - PyUnicode_4BYTE_KIND (4):
++
++         * character type = Py_UCS4 (32 bits, unsigned)
++         * all characters are in the range U+0000-U+10FFFF
++         * at least one character is in the range U+10000-U+10FFFF
++       */
++    unsigned int kind:3;
++    /* Compact is with respect to the allocation scheme. Compact unicode
++       objects only require one memory block while non-compact objects use
++       one block for the PyUnicodeObject struct and another for its data
++       buffer. */
++    unsigned int compact:1;
++    /* The string only contains characters in the range U+0000-U+007F (ASCII)
++       and the kind is PyUnicode_1BYTE_KIND. If ascii is set and compact is
++       set, use the PyASCIIObject structure. */
++    unsigned int ascii:1;
++    /* The object is statically allocated. */
++    unsigned int statically_allocated:1;
++#ifndef Py_GIL_DISABLED
++    /* Historical: padding to ensure that PyUnicode_DATA() is always aligned to
++       4 bytes (see issue gh-63736 on m68k) */
++    unsigned int :24;
++#endif
++};
++
+ /* ASCII-only strings created through PyUnicode_New use the PyASCIIObject
+    structure. state.ascii and state.compact are set, and the data
+    immediately follow the structure. utf8_length can be found
+@@ -99,67 +156,8 @@ typedef struct {
+     PyObject_HEAD
+     Py_ssize_t length;          /* Number of code points in the string */
+     Py_hash_t hash;             /* Hash value; -1 if not set */
+-#ifdef Py_GIL_DISABLED
+-    /* Ensure 4 byte alignment for PyUnicode_DATA(), see gh-63736 on m68k.
+-       In the non-free-threaded build, we'll use explicit padding instead */
+-   _Py_ALIGN_AS(4)
+-#endif
+-    struct {
+-        /* If interned is non-zero, the two references from the
+-           dictionary to this object are *not* counted in ob_refcnt.
+-           The possible values here are:
+-               0: Not Interned
+-               1: Interned
+-               2: Interned and Immortal
+-               3: Interned, Immortal, and Static
+-           This categorization allows the runtime to determine the right
+-           cleanup mechanism at runtime shutdown. */
+-#ifdef Py_GIL_DISABLED
+-        // Needs to be accessed atomically, so can't be a bit field.
+-        unsigned char interned;
+-#else
+-        unsigned int interned:2;
+-#endif
+-        /* Character size:
+-
+-           - PyUnicode_1BYTE_KIND (1):
+-
+-             * character type = Py_UCS1 (8 bits, unsigned)
+-             * all characters are in the range U+0000-U+00FF (latin1)
+-             * if ascii is set, all characters are in the range U+0000-U+007F
+-               (ASCII), otherwise at least one character is in the range
+-               U+0080-U+00FF
+-
+-           - PyUnicode_2BYTE_KIND (2):
+-
+-             * character type = Py_UCS2 (16 bits, unsigned)
+-             * all characters are in the range U+0000-U+FFFF (BMP)
+-             * at least one character is in the range U+0100-U+FFFF
+-
+-           - PyUnicode_4BYTE_KIND (4):
+-
+-             * character type = Py_UCS4 (32 bits, unsigned)
+-             * all characters are in the range U+0000-U+10FFFF
+-             * at least one character is in the range U+10000-U+10FFFF
+-         */
+-        unsigned int kind:3;
+-        /* Compact is with respect to the allocation scheme. Compact unicode
+-           objects only require one memory block while non-compact objects use
+-           one block for the PyUnicodeObject struct and another for its data
+-           buffer. */
+-        unsigned int compact:1;
+-        /* The string only contains characters in the range U+0000-U+007F (ASCII)
+-           and the kind is PyUnicode_1BYTE_KIND. If ascii is set and compact is
+-           set, use the PyASCIIObject structure. */
+-        unsigned int ascii:1;
+-        /* The object is statically allocated. */
+-        unsigned int statically_allocated:1;
+-#ifndef Py_GIL_DISABLED
+-        /* Padding to ensure that PyUnicode_DATA() is always aligned to
+-           4 bytes (see issue gh-63736 on m68k) */
+-        unsigned int :24;
+-#endif
+-    } state;
++    /* Ensure 4 byte alignment for PyUnicode_DATA(), see gh-63736 on m68k. */
++   _Py_ALIGNED_DEF(4, struct _PyUnicodeObject_state) state;
+ } PyASCIIObject;
+ 
+ /* Non-ASCII strings allocated through PyUnicode_New use the
+diff --git a/Include/internal/pycore_interp_structs.h b/Include/internal/pycore_interp_structs.h
+index b93d6d3..052b133 100644
+--- a/Include/internal/pycore_interp_structs.h
++++ b/Include/internal/pycore_interp_structs.h
+@@ -162,10 +162,11 @@ struct atexit_state {
+ typedef struct {
+     // Tagged pointer to next object in the list.
+     // 0 means the object is not tracked
+-    uintptr_t _gc_next;
++    _Py_ALIGNED_DEF(_PyObject_MIN_ALIGNMENT, uintptr_t) _gc_next;
+ 
+     // Tagged pointer to previous object in the list.
+     // Lowest two bits are used for flags documented later.
++    // Those bits are made available by the struct's minimum alignment.
+     uintptr_t _gc_prev;
+ } PyGC_Head;
+ 
+diff --git a/Include/object.h b/Include/object.h
+index 50a41e3..28d4153 100644
+--- a/Include/object.h
++++ b/Include/object.h
+@@ -101,6 +101,12 @@ whose size is determined when the object is allocated.
+ #define PyObject_VAR_HEAD      PyVarObject ob_base;
+ #define Py_INVALID_SIZE (Py_ssize_t)-1
+ 
++/* PyObjects are given a minimum alignment so that the least significant bits
++ * of an object pointer become available for other purposes.
++ * This must be an integer literal with the value (1 << _PyGC_PREV_SHIFT), number of bytes.
++ */
++#define _PyObject_MIN_ALIGNMENT 4
++
+ /* Nothing is actually declared to be a PyObject, but every pointer to
+  * a Python object can be cast to a PyObject*.  This is inheritance built
+  * by hand.  Similarly every pointer to a variable-size Python object can,
+@@ -136,6 +142,7 @@ struct _object {
+ #else
+         Py_ssize_t ob_refcnt;
+ #endif
++        _Py_ALIGNED_DEF(_PyObject_MIN_ALIGNMENT, char) _aligner;
+     };
+ #ifdef _MSC_VER
+     __pragma(warning(pop))
+@@ -153,7 +160,7 @@ struct _object {
+     // ob_tid stores the thread id (or zero). It is also used by the GC and the
+     // trashcan mechanism as a linked list pointer and by the GC to store the
+     // computed "gc_refs" refcount.
+-    uintptr_t ob_tid;
++    _Py_ALIGNED_DEF(_PyObject_MIN_ALIGNMENT, uintptr_t) ob_tid;
+     uint16_t ob_flags;
+     PyMutex ob_mutex;           // per-object lock
+     uint8_t ob_gc_bits;         // gc-related state
+diff --git a/Include/pymacro.h b/Include/pymacro.h
+index 1af057a..29ebe3e 100644
+--- a/Include/pymacro.h
++++ b/Include/pymacro.h
+@@ -24,44 +24,66 @@
+ #endif
+ 
+ 
+-// _Py_ALIGN_AS: this compiler's spelling of `alignas` keyword,
+-// We currently use alignas for free-threaded builds only; additional compat
+-// checking would be great before we add it to the default build.
+-// Standards/compiler support:
++// _Py_ALIGNED_DEF(N, T): Define a variable/member with increased alignment
++//
++// `N`: the desired minimum alignment, an integer literal, number of bytes
++// `T`: the type of the defined variable
++//      (or a type with at least the defined variable's alignment)
++//
++// May not be used on a struct definition.
++//
++// Standards/compiler support for `alignas` alternatives:
+ // - `alignas` is a keyword in C23 and C++11.
+ // - `_Alignas` is a keyword in C11
+ // - GCC & clang has __attribute__((aligned))
+ //   (use that for older standards in pedantic mode)
+ // - MSVC has __declspec(align)
+ // - `_Alignas` is common C compiler extension
+-// Older compilers may name it differently; to allow compilation on such
+-// unsupported platforms, we don't redefine _Py_ALIGN_AS if it's already
++// Older compilers may name `alignas` differently; to allow compilation on such
++// unsupported platforms, we don't redefine _Py_ALIGNED_DEF if it's already
+ // defined. Note that defining it wrong (including defining it to nothing) will
+ // cause ABI incompatibilities.
+-#ifdef Py_GIL_DISABLED
+-#   ifndef _Py_ALIGN_AS
+-#       ifdef __cplusplus
+-#           if __cplusplus >= 201103L
+-#               define _Py_ALIGN_AS(V) alignas(V)
+-#           elif defined(__GNUC__) || defined(__clang__)
+-#               define _Py_ALIGN_AS(V) __attribute__((aligned(V)))
+-#           elif defined(_MSC_VER)
+-#               define _Py_ALIGN_AS(V) __declspec(align(V))
+-#           else
+-#               define _Py_ALIGN_AS(V) alignas(V)
+-#           endif
+-#       elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
+-#           define _Py_ALIGN_AS(V) alignas(V)
+-#       elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+-#           define _Py_ALIGN_AS(V) _Alignas(V)
+-#       elif (defined(__GNUC__) || defined(__clang__))
+-#           define _Py_ALIGN_AS(V) __attribute__((aligned(V)))
+-#       elif defined(_MSC_VER)
+-#           define _Py_ALIGN_AS(V) __declspec(align(V))
+-#       else
+-#           define _Py_ALIGN_AS(V) _Alignas(V)
+-#       endif
+-#   endif
++//
++// Behavior of `alignas` alternatives:
++// - `alignas` & `_Alignas`:
++//   - Can be used multiple times; the greatest alignment applies.
++//   - It is an *error* if the combined effect of all `alignas` modifiers would
++//     decrease the alignment.
++//   - Takes types or numbers.
++//   - May not be used on a struct definition, unless also defining a variable.
++// - `__declspec(align)`:
++//   - Has no effect if it would decrease alignment.
++//   - Only takes an integer literal.
++//   - May be used on struct or variable definitions.
++//     However, when defining both the struct and the variable at once,
++//     `declspec(aligned)` causes compiler warning 5274 and possible ABI
++//     incompatibility.
++// - ` __attribute__((aligned))`:
++//   - Has no effect if it would decrease alignment.
++//   - Takes types or numbers
++//   - May be used on struct or variable definitions.
++#ifndef _Py_ALIGNED_DEF
++#    ifdef __cplusplus
++#        if __cplusplus >= 201103L
++#            define _Py_ALIGNED_DEF(N, T) alignas(N) alignas(T) T
++#        elif defined(__GNUC__) || defined(__clang__)
++#            define _Py_ALIGNED_DEF(N, T) __attribute__((aligned(N))) T
++#        elif defined(_MSC_VER)
++#            define _Py_ALIGNED_DEF(N, T) __declspec(align(N)) T
++#        else
++#            define _Py_ALIGNED_DEF(N, T) alignas(N) alignas(T) T
++#        endif
++#    elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
++#        define _Py_ALIGNED_DEF(N, T) alignas(N) alignas(T) T
++#    elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
++#        define _Py_ALIGNED_DEF(N, T)  _Alignas(N) _Alignas(T) T
++#    elif (defined(__GNUC__) || defined(__clang__))
++#        define _Py_ALIGNED_DEF(N, T) __attribute__((aligned(N))) T
++#    elif defined(_MSC_VER)
++#        define _Py_ALIGNED_DEF(N, T) __declspec(align(N)) T
++#    else
++#        define _Py_ALIGNED_DEF(N, T) _Alignas(N) _Alignas(T) T
++#    endif
+ #endif
+ 
+ /* Minimum value between x and y */
+diff --git a/Misc/NEWS.d/next/Build/2024-12-04-10-00-35.gh-issue-127545.t0THjE.rst b/Misc/NEWS.d/next/Build/2024-12-04-10-00-35.gh-issue-127545.t0THjE.rst
+new file mode 100644
+index 0000000..3667e27
+--- /dev/null
++++ b/Misc/NEWS.d/next/Build/2024-12-04-10-00-35.gh-issue-127545.t0THjE.rst
+@@ -0,0 +1 @@
++Fix crash when building on Linux/m68k.
+-- 
+2.50.1 (Apple Git-155)
+

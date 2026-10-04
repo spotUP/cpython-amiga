@@ -1,0 +1,240 @@
+From db85d793ae55e67a0836539a912e77fa2b4b0768 Mon Sep 17 00:00:00 2001
+From: spotUP <retroranksmail@gmail.com>
+Date: Sun, 4 Oct 2026 21:18:06 +0200
+Subject: [PATCH 1/9] configure: m68k-amigaos host, --with-pthread-stubs,
+ static modules
+
+AmigaOS 3.x with ixemul is an out-of-tree cross target (MACHDEP amigaos).
+--with-pthread-stubs selects WASI's stubbed pthreads before any pthread
+detection runs (bebbo's libpthread must not be picked up: its tasks cannot
+call ixemul); it is the default on AmigaOS and can be forced on any host
+to prove the one-thread configuration there. On AmigaOS every stdlib
+module is static and the ones ixemul cannot support are n/a.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ configure    | 71 +++++++++++++++++++++++++++++++++++++++++++++++++---
+ configure.ac | 55 +++++++++++++++++++++++++++++++++++++---
+ 2 files changed, 120 insertions(+), 6 deletions(-)
+
+diff --git a/configure b/configure
+index 2cb22a7..e39d4b4 100755
+--- a/configure
++++ b/configure
+@@ -1118,6 +1118,7 @@ with_system_libmpdec
+ with_decimal_contextvar
+ enable_loadable_sqlite_extensions
+ with_dbmliborder
++with_pthread_stubs
+ enable_ipv6
+ with_doc_strings
+ with_mimalloc
+@@ -1921,6 +1922,8 @@ Optional Packages:
+                           override order to check db backends for dbm; a valid
+                           value is a colon separated string with the backend
+                           names `ndbm', `gdbm' and `bdb'.
++  --with-pthread-stubs    use stubbed pthreads, a one-thread build (default is
++                          yes on AmigaOS)
+   --with-doc-strings      enable documentation strings (default is yes)
+   --with-mimalloc         build with mimalloc memory allocator (default is yes
+                           if C11 stdatomic.h is available.)
+@@ -4130,6 +4133,10 @@ then
+ 	*-*-wasi*)
+ 	    ac_sys_system=WASI
+ 	    ;;
++	m68k-*-amigaos*)
++	    # AmigaOS 3.x on 68020+ with ixemul.library (out-of-tree port)
++	    ac_sys_system=AmigaOS
++	    ;;
+ 	*)
+ 		# for now, limit cross builds to known configurations
+ 		MACHDEP="unknown"
+@@ -4634,6 +4641,9 @@ printf "%s\n" "$IPHONEOS_DEPLOYMENT_TARGET" >&6; }
+ 	wasm32-*-* | wasm64-*-*)
+ 		_host_ident=$host_cpu
+ 		;;
++	m68k-*-amigaos*)
++		_host_ident=$host_cpu
++		;;
+ 	*)
+ 		# for now, limit cross builds to known configurations
+ 		MACHDEP="unknown"
+@@ -17858,7 +17868,33 @@ printf "%s\n" "$DBM_CFLAGS $DBM_LIBS" >&6; }
+ # For a single AC_DEFINE, no template is needed.
+ 
+ 
+-if test "$ac_cv_pthread_is_default" = yes
++# --with-pthread-stubs: one thread, WASI's stubbed pthreads (pthread_create
++# fails, locks are no-ops). Default on AmigaOS (ixemul has no threads); can be
++# forced on any host to test that configuration off the target.
++{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for --with-pthread-stubs" >&5
++printf %s "checking for --with-pthread-stubs... " >&6; }
++
++# Check whether --with-pthread-stubs was given.
++if test ${with_pthread_stubs+y}
++then :
++  withval=$with_pthread_stubs;
++else case e in #(
++  e) case $ac_sys_system in #(
++  AmigaOS) :
++    with_pthread_stubs=yes ;; #(
++  *) :
++    with_pthread_stubs=no ;;
++esac ;;
++esac
++fi
++
++{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $with_pthread_stubs" >&5
++printf "%s\n" "$with_pthread_stubs" >&6; }
++
++if test "$with_pthread_stubs" = yes
++then
++    posix_threads=stub
++elif test "$ac_cv_pthread_is_default" = yes
+ then
+     # Defining _REENTRANT on system with POSIX threads should not hurt.
+     printf "%s\n" "#define _REENTRANT 1" >>confdefs.h
+@@ -31711,6 +31747,35 @@ case $ac_sys_system in #(
+     py_cv_module_readline=n/a
+     py_cv_module_=n/a
+ 
++   ;; #(
++  AmigaOS) :
++
++
++
++    py_cv_module__curses=n/a
++    py_cv_module__curses_panel=n/a
++    py_cv_module__dbm=n/a
++    py_cv_module__gdbm=n/a
++    py_cv_module__multiprocessing=n/a
++    py_cv_module__posixshmem=n/a
++    py_cv_module__scproxy=n/a
++    py_cv_module__tkinter=n/a
++    py_cv_module__interpreters=n/a
++    py_cv_module__interpchannels=n/a
++    py_cv_module__interpqueues=n/a
++    py_cv_module__remote_debugging=n/a
++    py_cv_module__ctypes=n/a
++    py_cv_module__ctypes_test=n/a
++    py_cv_module__testimportmultiple=n/a
++    py_cv_module__testmultiphase=n/a
++    py_cv_module__testsinglephase=n/a
++    py_cv_module__uuid=n/a
++    py_cv_module_nis=n/a
++    py_cv_module_spwd=n/a
++    py_cv_module_xxlimited=n/a
++    py_cv_module_xxlimited_35=n/a
++    py_cv_module_=n/a
++
+    ;; #(
+   WASI) :
+ 
+@@ -31758,8 +31823,8 @@ case $ac_sys_system in #(
+ esac
+ 
+ 
+-case $host_cpu in #(
+-  wasm32|wasm64) :
++case $host_cpu/$ac_sys_system in #(
++  wasm32/*|wasm64/*|*/AmigaOS) :
+     MODULE_BUILDTYPE=static ;; #(
+   *) :
+     MODULE_BUILDTYPE=${MODULE_BUILDTYPE:-shared}
+diff --git a/configure.ac b/configure.ac
+index 967d34d..c0a7840 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -342,6 +342,10 @@ then
+ 	*-*-wasi*)
+ 	    ac_sys_system=WASI
+ 	    ;;
++	m68k-*-amigaos*)
++	    # AmigaOS 3.x on 68020+ with ixemul.library (out-of-tree port)
++	    ac_sys_system=AmigaOS
++	    ;;
+ 	*)
+ 		# for now, limit cross builds to known configurations
+ 		MACHDEP="unknown"
+@@ -812,6 +816,9 @@ if test "$cross_compiling" = yes; then
+ 	wasm32-*-* | wasm64-*-*)
+ 		_host_ident=$host_cpu
+ 		;;
++	m68k-*-amigaos*)
++		_host_ident=$host_cpu
++		;;
+ 	*)
+ 		# for now, limit cross builds to known configurations
+ 		MACHDEP="unknown"
+@@ -4708,7 +4715,22 @@ AC_MSG_RESULT([$DBM_CFLAGS $DBM_LIBS])
+ AH_TEMPLATE([_REENTRANT],
+   [Define to force use of thread-safe errno, h_errno, and other functions])
+ 
+-if test "$ac_cv_pthread_is_default" = yes
++# --with-pthread-stubs: one thread, WASI's stubbed pthreads (pthread_create
++# fails, locks are no-ops). Default on AmigaOS (ixemul has no threads); can be
++# forced on any host to test that configuration off the target.
++AC_MSG_CHECKING([for --with-pthread-stubs])
++AC_ARG_WITH([pthread-stubs],
++  [AS_HELP_STRING([--with-pthread-stubs],
++    [use stubbed pthreads, a one-thread build (default is yes on AmigaOS)])],
++  [],
++  [AS_CASE([$ac_sys_system], [AmigaOS], [with_pthread_stubs=yes],
++           [with_pthread_stubs=no])])
++AC_MSG_RESULT([$with_pthread_stubs])
++
++if test "$with_pthread_stubs" = yes
++then
++    posix_threads=stub
++elif test "$ac_cv_pthread_is_default" = yes
+ then
+     # Defining _REENTRANT on system with POSIX threads should not hurt.
+     AC_DEFINE([_REENTRANT])
+@@ -7940,6 +7962,33 @@ AS_CASE([$ac_sys_system],
+       [readline],
+     )
+   ],
++  [AmigaOS], [
++    dnl ixemul: no threads, no fork (vfork only), no shared memory, no dlopen.
++    PY_STDLIB_MOD_SET_NA(
++      [_curses],
++      [_curses_panel],
++      [_dbm],
++      [_gdbm],
++      [_multiprocessing],
++      [_posixshmem],
++      [_scproxy],
++      [_tkinter],
++      [_interpreters],
++      [_interpchannels],
++      [_interpqueues],
++      [_remote_debugging],
++      [_ctypes],
++      [_ctypes_test],
++      [_testimportmultiple],
++      [_testmultiphase],
++      [_testsinglephase],
++      [_uuid],
++      [nis],
++      [spwd],
++      [xxlimited],
++      [xxlimited_35],
++    )
++  ],
+   [WASI], [
+     dnl subprocess and multiprocessing are not supported (no fork syscall).
+     dnl curses and tkinter user interface are not available.
+@@ -7985,8 +8034,8 @@ AS_CASE([$ac_sys_system],
+ dnl AC_MSG_NOTICE([m4_set_list([_PY_STDLIB_MOD_SET_NA])])
+ 
+ dnl Default value for Modules/Setup.stdlib build type
+-AS_CASE([$host_cpu],
+-  [wasm32|wasm64], [MODULE_BUILDTYPE=static],
++AS_CASE([$host_cpu/$ac_sys_system],
++  [wasm32/*|wasm64/*|*/AmigaOS], [MODULE_BUILDTYPE=static],
+   [MODULE_BUILDTYPE=${MODULE_BUILDTYPE:-shared}]
+ )
+ AC_SUBST([MODULE_BUILDTYPE])
+-- 
+2.50.1 (Apple Git-155)
+

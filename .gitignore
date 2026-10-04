@@ -1,0 +1,5 @@
+vendor/cpython/
+build/
+thoughts/spot/
+thoughts/searchable/
+__pycache__/

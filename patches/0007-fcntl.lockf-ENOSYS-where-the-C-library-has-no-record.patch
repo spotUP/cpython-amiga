@@ -1,0 +1,43 @@
+From cc7ce8ac29b32368315694582c972cbb5d8b8252 Mon Sep 17 00:00:00 2001
+From: spotUP <retroranksmail@gmail.com>
+Date: Sun, 4 Oct 2026 22:04:46 +0200
+Subject: [PATCH 7/9] fcntl.lockf: ENOSYS where the C library has no record
+ locks
+
+ixemul (AmigaOS) defines no F_SETLK/F_RDLCK: lockf() raises
+OSError(ENOSYS) there; fcntl.flock() is unaffected.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ Modules/fcntlmodule.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/Modules/fcntlmodule.c b/Modules/fcntlmodule.c
+index 690882e..f72d884 100644
+--- a/Modules/fcntlmodule.c
++++ b/Modules/fcntlmodule.c
+@@ -408,6 +408,13 @@ fcntl_lockf_impl(PyObject *module, int fd, int code, PyObject *lenobj,
+ #define LOCK_NB         4       /* don't block when locking */
+ #define LOCK_UN         8       /* unlock */
+ #endif  /* LOCK_SH */
++#ifndef F_SETLK
++    /* No POSIX record locks in the C library (AmigaOS ixemul): lockf()
++       cannot be done; flock() still works where the library has it. */
++    (void)code; (void)lenobj; (void)startobj; (void)whence; (void)async_err;
++    errno = ENOSYS;
++    return PyErr_SetFromErrno(PyExc_OSError);
++#else
+     {
+         struct flock l;
+         if (code == LOCK_UN)
+@@ -455,6 +462,7 @@ fcntl_lockf_impl(PyObject *module, int fd, int code, PyObject *lenobj,
+         return !async_err ? PyErr_SetFromErrno(PyExc_OSError) : NULL;
+     }
+     Py_RETURN_NONE;
++#endif  /* F_SETLK */
+ }
+ 
+ /* List of functions */
+-- 
+2.50.1 (Apple Git-155)
+

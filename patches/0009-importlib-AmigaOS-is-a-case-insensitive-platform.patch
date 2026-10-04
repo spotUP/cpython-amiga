@@ -1,0 +1,30 @@
+From 61e8a977f8cd0bd4209e0fa171a14266777072eb Mon Sep 17 00:00:00 2001
+From: spotUP <retroranksmail@gmail.com>
+Date: Sun, 4 Oct 2026 22:04:46 +0200
+Subject: [PATCH 9/9] importlib: AmigaOS is a case-insensitive platform
+
+AmigaDOS file systems are case-insensitive and case-preserving, like
+macOS's: honour PYTHONCASEOK there as on darwin.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ Lib/importlib/_bootstrap_external.py | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/Lib/importlib/_bootstrap_external.py b/Lib/importlib/_bootstrap_external.py
+index 6a828ae..8ef8cc2 100644
+--- a/Lib/importlib/_bootstrap_external.py
++++ b/Lib/importlib/_bootstrap_external.py
+@@ -52,7 +52,8 @@
+ 
+ # Bootstrap-related code ######################################################
+ _CASE_INSENSITIVE_PLATFORMS_STR_KEY = 'win',
+-_CASE_INSENSITIVE_PLATFORMS_BYTES_KEY = 'cygwin', 'darwin', 'ios', 'tvos', 'watchos'
++_CASE_INSENSITIVE_PLATFORMS_BYTES_KEY = ('cygwin', 'darwin', 'ios', 'tvos', 'watchos',
++                                         'amigaos')  # AmigaDOS: case-preserving
+ _CASE_INSENSITIVE_PLATFORMS =  (_CASE_INSENSITIVE_PLATFORMS_BYTES_KEY
+                                 + _CASE_INSENSITIVE_PLATFORMS_STR_KEY)
+ 
+-- 
+2.50.1 (Apple Git-155)
+

@@ -1,0 +1,121 @@
+From 1f77f13336f3614b4e1e0b6ccfe06ce2ee143054 Mon Sep 17 00:00:00 2001
+From: spotUP <retroranksmail@gmail.com>
+Date: Sun, 4 Oct 2026 21:18:08 +0200
+Subject: [PATCH 3/9] AmigaOS: C stack limits from the task, $STACK: cookie
+
+3.14 checks the C stack pointer against the thread's stack bounds;
+without OS bounds it assumes 4 MB below the first page it sees, which on
+AmigaOS (a few KB to 1 MB stacks) means a crash instead of
+RecursionError. Read exec's tc_SPLower/tc_SPUpper (kept current by
+StackSwap) in Python/amigaos.c (NDK headers only), choose the limits in
+a pure inline function (host-tested), and ship a "$STACK: 1048576"
+cookie so shells give the interpreter 1 MB.
+
+On macOS with --with-pthread-stubs there is no pthread_get_stackaddr_np
+(no <pthread.h>): use the generic estimate there.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ Include/internal/pycore_amigaos.h | 34 +++++++++++++++++++++++++++++++
+ Python/amigaos.c                  | 20 ++++++++++++++++++
+ Python/ceval.c                    |  9 +++++++-
+ 3 files changed, 62 insertions(+), 1 deletion(-)
+ create mode 100644 Include/internal/pycore_amigaos.h
+ create mode 100644 Python/amigaos.c
+
+diff --git a/Include/internal/pycore_amigaos.h b/Include/internal/pycore_amigaos.h
+new file mode 100644
+index 0000000..cc4f832
+--- /dev/null
++++ b/Include/internal/pycore_amigaos.h
+@@ -0,0 +1,34 @@
++/* AmigaOS 3.x (m68k-amigaos, ixemul) platform helpers. Out-of-tree port,
++ * not upstream (PEP 11: unsupported platform). */
++#ifndef Py_INTERNAL_AMIGAOS_H
++#define Py_INTERNAL_AMIGAOS_H
++
++#include <stdint.h>               // uintptr_t
++
++/* The C stack of the running task, from exec's Task structure
++ * (tc_SPLower .. tc_SPUpper). StackSwap() keeps both current, so this is
++ * the stack the shell's RunCommand (or a $STACK: cookie) gave us.
++ * Defined in Python/amigaos.c, which includes only NDK headers. */
++extern void _PyAmiga_TaskStack(uintptr_t *lower, uintptr_t *upper);
++
++/* Pick the interpreter's stack limits from the task's stack bounds.
++ * If sp lies inside [lower, upper) those are the limits. Otherwise the task
++ * runs on a stack exec does not know about (a library swapped it without
++ * StackSwap): then nothing beyond sp is known, so assume only
++ * `fallback_size` bytes below the current page. Returns 1 if the task's
++ * bounds were used, 0 for the fallback. Pure: tested on the host. */
++static inline int
++_PyAmiga_StackLimits(uintptr_t sp, uintptr_t lower, uintptr_t upper,
++                     uintptr_t fallback_size, uintptr_t *base, uintptr_t *top)
++{
++    if (lower < upper && sp >= lower && sp < upper) {
++        *base = lower;
++        *top = upper;
++        return 1;
++    }
++    *top = (sp + 4095) & ~(uintptr_t)4095;
++    *base = *top - fallback_size;
++    return 0;
++}
++
++#endif /* !Py_INTERNAL_AMIGAOS_H */
+diff --git a/Python/amigaos.c b/Python/amigaos.c
+new file mode 100644
+index 0000000..84a327c
+--- /dev/null
++++ b/Python/amigaos.c
+@@ -0,0 +1,20 @@
++/* AmigaOS 3.x platform glue for CPython (out-of-tree m68k-amigaos port).
++ * Only NDK headers here: exec's and ixemul's headers do not mix.
++ * Linked through MACHDEP_OBJS (amiga/config.site of cpython-amiga). */
++#include <exec/tasks.h>
++#include <proto/exec.h>
++#include <stdint.h>
++
++/* AmigaOS shells (and UP-Term's vsh) give a program the stack named by a
++ * "$STACK:" string in its executable. 3.14 measures the C stack against
++ * the task's bounds; 1 MB holds deep repr/json/re recursion. */
++static const char amiga_stack_cookie[] __attribute__((used)) =
++    "$STACK: 1048576";
++
++void
++_PyAmiga_TaskStack(uintptr_t *lower, uintptr_t *upper)
++{
++    struct Task *me = FindTask(NULL);
++    *lower = (uintptr_t)me->tc_SPLower;
++    *upper = (uintptr_t)me->tc_SPUpper;
++}
+diff --git a/Python/ceval.c b/Python/ceval.c
+index b3dab2e..76defe6 100644
+--- a/Python/ceval.c
++++ b/Python/ceval.c
+@@ -40,6 +40,9 @@
+ #include "pycore_traceback.h"     // _PyTraceBack_FromFrame
+ #include "pycore_tuple.h"         // _PyTuple_ITEMS()
+ #include "pycore_uop_ids.h"       // Uops
++#ifdef __amigaos__
++#  include "pycore_amigaos.h"     // _PyAmiga_TaskStack()
++#endif
+ 
+ #include "dictobject.h"
+ #include "frameobject.h"          // _PyInterpreterFrame_GetLine
+@@ -450,7 +453,11 @@ hardware_stack_limits(uintptr_t *base, uintptr_t *top, uintptr_t sp)
+     ULONG guarantee = 0;
+     SetThreadStackGuarantee(&guarantee);
+     *base = (uintptr_t)low + guarantee;
+-#elif defined(__APPLE__)
++#elif defined(__amigaos__)
++    uintptr_t lower, upper;
++    _PyAmiga_TaskStack(&lower, &upper);
++    (void)_PyAmiga_StackLimits(sp, lower, upper, 32 * 1024, base, top);
++#elif defined(__APPLE__) && !defined(HAVE_PTHREAD_STUBS)
+     pthread_t this_thread = pthread_self();
+     void *stack_addr = pthread_get_stackaddr_np(this_thread); // top of the stack
+     size_t stack_size = pthread_get_stacksize_np(this_thread);
+-- 
+2.50.1 (Apple Git-155)
+

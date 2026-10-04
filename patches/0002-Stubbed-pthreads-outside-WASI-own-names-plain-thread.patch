@@ -1,0 +1,119 @@
+From 489916b034f53dcace98c651f0c2b328b7928ea5 Mon Sep 17 00:00:00 2001
+From: spotUP <retroranksmail@gmail.com>
+Date: Sun, 4 Oct 2026 21:18:07 +0200
+Subject: [PATCH 2/9] Stubbed pthreads outside WASI: own names, plain
+ thread-locals
+
+- pthread_stubs.h: outside WASI the stub types and functions are renamed
+  (_Py_stub_*), so they cannot clash with a C library that declares
+  pthread types (macOS <sys/types.h>) or a partial pthread API (an
+  AmigaOS compat library's pthread_self).
+- pyport.h: with HAVE_PTHREAD_STUBS there is one thread, so
+  _Py_thread_local is a plain global; avoids emulated TLS (a function
+  call per access) on compilers without native TLS (m68k-amigaos gcc).
+- pythread.h: no PY_HAVE_THREAD_NATIVE_ID with stubs (no thread ids).
+- test.support.threading_helper: a pthread-stubs build cannot start
+  threads on any platform, not only on WASI.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ Include/cpython/pthread_stubs.h      | 34 ++++++++++++++++++++++++++++
+ Include/pyport.h                     |  7 +++++-
+ Include/pythread.h                   |  3 ++-
+ Lib/test/support/threading_helper.py |  3 +++
+ 4 files changed, 45 insertions(+), 2 deletions(-)
+
+diff --git a/Include/cpython/pthread_stubs.h b/Include/cpython/pthread_stubs.h
+index e542eaa..e350b23 100644
+--- a/Include/cpython/pthread_stubs.h
++++ b/Include/cpython/pthread_stubs.h
+@@ -46,6 +46,40 @@
+ #  endif
+ #  include <bits/alltypes.h>
+ #else
++// Outside WASI the stubs get their own names: the C library may declare
++// pthread types in <sys/types.h> (macOS) or ship a partial pthread API of
++// its own (a compat library on AmigaOS), and neither may clash with these.
++#  define pthread_cond_t _Py_stub_pthread_cond_t
++#  define pthread_condattr_t _Py_stub_pthread_condattr_t
++#  define pthread_mutex_t _Py_stub_pthread_mutex_t
++#  define pthread_mutexattr_t _Py_stub_pthread_mutexattr_t
++#  define pthread_key_t _Py_stub_pthread_key_t
++#  define pthread_t _Py_stub_pthread_t
++#  define pthread_attr_t _Py_stub_pthread_attr_t
++#  define pthread_mutex_init _Py_stub_pthread_mutex_init
++#  define pthread_mutex_destroy _Py_stub_pthread_mutex_destroy
++#  define pthread_mutex_trylock _Py_stub_pthread_mutex_trylock
++#  define pthread_mutex_lock _Py_stub_pthread_mutex_lock
++#  define pthread_mutex_unlock _Py_stub_pthread_mutex_unlock
++#  define pthread_cond_init _Py_stub_pthread_cond_init
++#  define pthread_cond_destroy _Py_stub_pthread_cond_destroy
++#  define pthread_cond_wait _Py_stub_pthread_cond_wait
++#  define pthread_cond_timedwait _Py_stub_pthread_cond_timedwait
++#  define pthread_cond_signal _Py_stub_pthread_cond_signal
++#  define pthread_condattr_init _Py_stub_pthread_condattr_init
++#  define pthread_condattr_setclock _Py_stub_pthread_condattr_setclock
++#  define pthread_create _Py_stub_pthread_create
++#  define pthread_detach _Py_stub_pthread_detach
++#  define pthread_join _Py_stub_pthread_join
++#  define pthread_self _Py_stub_pthread_self
++#  define pthread_exit _Py_stub_pthread_exit
++#  define pthread_attr_init _Py_stub_pthread_attr_init
++#  define pthread_attr_setstacksize _Py_stub_pthread_attr_setstacksize
++#  define pthread_attr_destroy _Py_stub_pthread_attr_destroy
++#  define pthread_key_create _Py_stub_pthread_key_create
++#  define pthread_key_delete _Py_stub_pthread_key_delete
++#  define pthread_getspecific _Py_stub_pthread_getspecific
++#  define pthread_setspecific _Py_stub_pthread_setspecific
+ typedef struct { void *__x; } pthread_cond_t;
+ typedef struct { unsigned __attr; } pthread_condattr_t;
+ typedef struct { void *__x; } pthread_mutex_t;
+diff --git a/Include/pyport.h b/Include/pyport.h
+index 2c8567f..53e45cb 100644
+--- a/Include/pyport.h
++++ b/Include/pyport.h
+@@ -514,7 +514,12 @@ extern "C" {
+ #      error "HAVE_THREAD_LOCAL is already defined"
+ #    endif
+ #    define HAVE_THREAD_LOCAL 1
+-#    ifdef thread_local
++#    if defined(HAVE_PTHREAD_STUBS)
++       // One thread per process (stubbed pthreads): a thread-local is a
++       // plain global. Avoids emulated TLS (a call per access) where the
++       // compiler has no native TLS, e.g. m68k-amigaos.
++#      define _Py_thread_local
++#    elif defined(thread_local)
+ #      define _Py_thread_local thread_local
+ #    elif __STDC_VERSION__ >= 201112L && !defined(__STDC_NO_THREADS__)
+ #      define _Py_thread_local _Thread_local
+diff --git a/Include/pythread.h b/Include/pythread.h
+index 82247da..1165301 100644
+--- a/Include/pythread.h
++++ b/Include/pythread.h
+@@ -42,7 +42,8 @@ PyAPI_FUNC(unsigned long) PyThread_get_thread_ident(void);
+ #if (defined(__APPLE__) || defined(__linux__) || defined(_WIN32) \
+      || defined(__FreeBSD__) || defined(__FreeBSD_kernel__) \
+      || defined(__OpenBSD__) || defined(__NetBSD__) \
+-     || defined(__DragonFly__) || defined(_AIX))
++     || defined(__DragonFly__) || defined(_AIX)) \
++    && !defined(HAVE_PTHREAD_STUBS)
+ #define PY_HAVE_THREAD_NATIVE_ID
+ PyAPI_FUNC(unsigned long) PyThread_get_thread_native_id(void);
+ #endif
+diff --git a/Lib/test/support/threading_helper.py b/Lib/test/support/threading_helper.py
+index cf87233..68733c5 100644
+--- a/Lib/test/support/threading_helper.py
++++ b/Lib/test/support/threading_helper.py
+@@ -231,6 +231,9 @@ def _can_start_thread() -> bool:
+         return sys._emscripten_info.pthreads
+     elif sys.platform == "wasi":
+         return False
++    elif sys.thread_info.name == "pthread-stubs":
++        # any platform built with --with-pthread-stubs (e.g. AmigaOS)
++        return False
+     else:
+         # assume all other platforms have working thread support.
+         return True
+-- 
+2.50.1 (Apple Git-155)
+

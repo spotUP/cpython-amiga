@@ -1,0 +1,148 @@
+From d86460bc95fa0d819178f36d6c46628b29cec348 Mon Sep 17 00:00:00 2001
+From: spotUP <retroranksmail@gmail.com>
+Date: Sun, 4 Oct 2026 22:04:46 +0200
+Subject: [PATCH 8/9] _posixsubprocess: a vfork()-only mode for AmigaOS
+
+ixemul has vfork() and no fork(). On AmigaOS (or with
+-DPy_SUBPROCESS_VFORK_ONLY on any host with vfork, for testing) the vfork
+path is the only one: no fork() fallback; the process signal mask stands
+in for pthread_sigmask() in a one-thread build; preexec_fn and user/group
+changes, which need code in the child before exec, fail with ENOSYS;
+reset_signal_handlers() copes without SA_SIGINFO and _NSIG.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ Modules/_posixsubprocess.c | 54 ++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 54 insertions(+)
+
+diff --git a/Modules/_posixsubprocess.c b/Modules/_posixsubprocess.c
+index d25ceca..9b1baf5 100644
+--- a/Modules/_posixsubprocess.c
++++ b/Modules/_posixsubprocess.c
+@@ -52,6 +52,34 @@
+ # define VFORK_USABLE 1
+ #endif
+ 
++/* AmigaOS (ixemul) has vfork() and no fork(): the vfork() path is the only
++ * one. The child runs on the parent's memory until execve(), as on Linux;
++ * what child_exec() calls (dup2, close, chdir, umask, sigaction, setsid,
++ * execve) is what ixemul's vfork children may do (tmux, libuv spawn).
++ * What needs fork() -- preexec_fn, user/group changes -- fails with ENOSYS.
++ * Py_SUBPROCESS_VFORK_ONLY selects the same code on any host with vfork()
++ * (the host proof build of cpython-amiga). */
++#if defined(HAVE_VFORK) && defined(HAVE_SIGNAL_H) && \
++    (defined(__amigaos__) || defined(Py_SUBPROCESS_VFORK_ONLY))
++# include <signal.h>
++# ifndef VFORK_USABLE
++#  define VFORK_USABLE 1
++# endif
++# define VFORK_ONLY 1
++# if !defined(_NSIG) && defined(NSIG)
++#  define _NSIG NSIG
++# endif
++# ifndef HAVE_PTHREAD_SIGMASK
++/* one thread (pthread stubs): the thread's signal mask is the process's */
++static int
++_Py_vfork_sigmask(int how, const sigset_t *set, sigset_t *old)
++{
++    return sigprocmask(how, set, old) == 0 ? 0 : errno;
++}
++#  define pthread_sigmask _Py_vfork_sigmask
++# endif
++#endif
++
+ #if defined(__sun) && defined(__SVR4)
+ /* readdir64 is used to work around Solaris 9 bug 6395699. */
+ # define readdir readdir64
+@@ -617,8 +645,12 @@ reset_signal_handlers(const sigset_t *child_sigmask)
+         }
+ 
+         /* void *h works as these fields are both pointer types already. */
++#ifdef SA_SIGINFO
+         void *h = (sa.sa_flags & SA_SIGINFO ? (void *)sa.sa_sigaction :
+                                               (void *)sa.sa_handler);
++#else
++        void *h = (void *)sa.sa_handler;
++#endif
+         if (h == SIG_IGN || h == SIG_DFL) {
+             continue;
+         }
+@@ -919,16 +951,24 @@ do_fork_exec(char *const exec_array[],
+             // Not in the child process, reacquire the GIL.
+             PyEval_RestoreThread(vfork_tstate_save);
+         }
++#ifndef VFORK_ONLY
+         if (pid == (pid_t)-1) {
+             /* If vfork() fails, fall back to using fork(). When it isn't
+              * allowed in a process by the kernel, vfork can return -1
+              * with errno EINVAL. https://bugs.python.org/issue47151. */
+             pid = fork();
+         }
++#endif
+     } else
+ #endif
+     {
++#ifdef VFORK_ONLY
++        /* rejected by the caller before we get here */
++        errno = ENOSYS;
++        pid = -1;
++#else
+         pid = fork();
++#endif
+     }
+ 
+     if (pid != 0) {
+@@ -941,6 +981,7 @@ do_fork_exec(char *const exec_array[],
+      * the code below.
+      */
+ 
++#ifndef VFORK_ONLY
+     if (preexec_fn != Py_None) {
+         /* We'll be calling back into Python later so we need to do this.
+          * This call may not be async-signal-safe but neither is calling
+@@ -948,6 +989,7 @@ do_fork_exec(char *const exec_array[],
+          * to avoid deadlock... */
+         PyOS_AfterFork_Child();
+     }
++#endif
+ 
+     child_exec(exec_array, argv, envp, cwd,
+                p2cread, p2cwrite, c2pread, c2pwrite,
+@@ -1228,6 +1270,15 @@ subprocess_fork_exec_impl(PyObject *module, PyObject *process_args,
+         goto cleanup;
+     }
+ 
++#ifdef VFORK_ONLY
++    /* Without fork() nothing may run in the child before exec: no
++     * preexec_fn, no user/group changes (see VFORK_ONLY above). */
++    if (preexec_fn != Py_None || uid != (uid_t)-1 || gid != (gid_t)-1 ||
++        extra_group_size >= 0) {
++        saved_errno = ENOSYS;
++        goto cleanup;
++    }
++#else
+     /* This must be the last thing done before fork() because we do not
+      * want to call PyOS_BeforeFork() if there is any chance of another
+      * error leading to the cleanup: code without calling fork(). */
+@@ -1238,6 +1289,7 @@ subprocess_fork_exec_impl(PyObject *module, PyObject *process_args,
+         PyOS_BeforeFork();
+         need_after_fork = 1;
+     }
++#endif
+ 
+     /* NOTE: When old_sigmask is non-NULL, do_fork_exec() may use vfork(). */
+     const void *old_sigmask = NULL;
+@@ -1297,8 +1349,10 @@ subprocess_fork_exec_impl(PyObject *module, PyObject *process_args,
+     }
+ #endif
+ 
++#ifndef VFORK_ONLY
+     if (need_after_fork)
+         PyOS_AfterFork_Parent();
++#endif
+ 
+ cleanup:
+     if (c_fds_to_keep != NULL) {
+-- 
+2.50.1 (Apple Git-155)
+

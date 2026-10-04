@@ -1,0 +1,32 @@
+From 0a770572c31ca89be306c6dd5a53e751c65cb05a Mon Sep 17 00:00:00 2001
+From: spotUP <retroranksmail@gmail.com>
+Date: Sun, 4 Oct 2026 22:04:45 +0200
+Subject: [PATCH 5/9] AmigaOS: UTF-8 as the locale and file system encoding
+
+ixemul has only the "C" locale (no nl_langinfo items beyond eight, no
+mbrtowc) and UP-Term's console speaks UTF-8: force UTF-8 as Android and
+VxWorks do (_Py_FORCE_UTF8_LOCALE).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ Include/pyport.h | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/Include/pyport.h b/Include/pyport.h
+index 53e45cb..ecbd1b4 100644
+--- a/Include/pyport.h
++++ b/Include/pyport.h
+@@ -534,7 +534,9 @@ extern "C" {
+ #  endif
+ #endif
+ 
+-#if defined(__ANDROID__) || defined(__VXWORKS__)
++#if defined(__ANDROID__) || defined(__VXWORKS__) || defined(__amigaos__)
++   // AmigaOS (ixemul): the C library has only the "C" locale and the
++   // console (UP-Term) speaks UTF-8.
+    // Use UTF-8 as the locale encoding, ignore the LC_CTYPE locale.
+    // See _Py_GetLocaleEncoding(), PyUnicode_DecodeLocale()
+    // and PyUnicode_EncodeLocale().
+-- 
+2.50.1 (Apple Git-155)
+
