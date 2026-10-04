@@ -59,6 +59,25 @@ try:
     check("subprocess over vfork (C4.1)", r.stdout.strip() == "vfork ok", (r.returncode, r.stdout, r.stderr))
 except Exception as e:
     check("subprocess over vfork (C4.1)", False, repr(e))
+# C4.2/C4.3: select over a pipe (ixemul select), sockets need a TCP/IP
+# stack (Roadshow/AmiTCP) running: without one they print INFO, not FAIL
+import select, socket
+r, w = os.pipe()
+os.write(w, b"p")
+check("select on a pipe", select.select([r], [], [], 5)[0] == [r] and os.read(r, 1) == b"p")
+os.close(r); os.close(w)
+try:
+    info = socket.getaddrinfo("127.0.0.1", 80, socket.AF_INET, socket.SOCK_STREAM)
+    check("getaddrinfo, numeric (neovim-amiga compat netdb)", info[0][4] == ("127.0.0.1", 80), info[0])
+except OSError as e:
+    print("INFO getaddrinfo:", e)
+try:
+    a, b = socket.socketpair()
+    a.send(b"s")
+    check("socketpair + select", select.select([b], [], [], 5)[0] == [b] and b.recv(1) == b"s")
+    a.close(); b.close()
+except OSError as e:
+    print("INFO socketpair:", e)
 print("sys.path:", sys.path)
 print("prefix:", sys.prefix, "executable:", sys.executable)
 print("sentinel took %.1f s" % (time.monotonic() - t0))
