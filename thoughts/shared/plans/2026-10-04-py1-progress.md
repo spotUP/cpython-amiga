@@ -273,3 +273,25 @@ ixemul.library in LIBS:, vsh). A TCP/IP stack only for the optional socket lines
   `libintl.h`, `sys/statvfs.h`, `sys/lock.h`, `pthread.h`: answered `no` in config.site.
 - ixemul's libc.a stubs: LVO = -6 * (syscall.def number + 4) (Open/Close/Expunge/Reserved).
 - The host test machine ran with load average ~100 during test_subprocess (hot Mac): -j4 only.
+
+## C3 run on the rig (main session, 2026-10-04 23:35-23:44)
+
+Rig: FS-UAE default config (68020, 8 MB fast + 64 MB Z3, KS 3.1/OS 3.x, ixemul-vtcon 48.2 in LIBS:),
+the dist copied to VTC:Python3, `Assign Python3: VTC:Python3`, `Stack 1100000`, run from AmigaShell
+through the rig agent (not vsh).
+
+- C3 sentinel line: `python3 -c "import os, re, json; print(json.dumps(os.listdir('.')))"` in RAM:
+  PRINTED THE LISTING (["ENV", "Clipboards", "T"]), 36 s start to exit, Avail FLUSH before/after
+  equal within 792 bytes (fast 69829328 -> 69828536).
+- c3-sentinel.py (by /Python3/c3-sentinel.py; `Python3:c3-sentinel.py` gives rc 2 = O-5, Vol:path
+  not handled): 14 OK, 1 FAIL, 183.4 s:
+  OK platform, UTF-8, thread stubs, Thread.start raises, RecursionError, json, re, floats, C99 libm,
+  math domain error, struct, listdir/stat, case-exact import, import JSON fails.
+  FAIL subprocess over vfork (C4.1): FileNotFoundError(2).
+- BUG stdout: every print arrives as reprs with the newline apart: `'OK   json round trip''\n'`.
+  Looks like sys.stdout is the early-init stdprinter / a repr-writing fallback, not the io stack
+  (check create_stdio / io init failing silently on ixemul isatty/fstat). Both runs show it.
+- BUG sys.executable = '/Ram Disk//Python3:bin/python3' (argv0 Amiga form joined to the cwd);
+  prefix /Python3 was found anyway.
+- Speed: 36 s for the one-liner, 183 s for the sentinel on the rig's 68020 (not cycle-exact; the
+  stock A1200 cannot run this: 2 MB chip only).
