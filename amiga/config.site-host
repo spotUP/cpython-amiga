@@ -1,0 +1,19 @@
+# config.site for the HOST PROOF build (macOS): the reduced AmigaOS
+# configuration on this machine. The thread stubs replace the system's
+# pthreads, so the system's <pthread.h> and pthread-only functions must stay
+# out (their types are the system's, not the stubs').
+ac_cv_header_pthread_h=no
+ac_cv_func_pthread_kill=no
+ac_cv_func_pthread_getattr_np=no
+ac_cv_func_pthread_getname_np=no
+ac_cv_func_pthread_setname_np=no
+ac_cv_func_pthread_get_name_np=no
+ac_cv_func_pthread_set_name_np=no
+ac_cv_func_pthread_condattr_setclock=no
+ac_cv_func_pthread_cond_timedwait_relative_np=no
+ac_cv_func_pthread_init=no
+ac_cv_func_sem_open=no
+ac_cv_func_sem_unlink=no
+ac_cv_func_sem_getvalue=no
+ac_cv_func_sem_timedwait=no
+ac_cv_func_sem_clockwait=no

@@ -1,0 +1,42 @@
+# C0 failures that the reduced configuration causes BY DESIGN.
+# id<TAB>reason. tools/host-tests.sh counts a module as pass* when every
+# failure it reports is listed here; anything else is a real failure.
+test_clock_functions (test.test_time.TestTimeWeaklinking.test_clock_functions)	platform.mac_ver() reads a plist through pyexpat: disabled in amiga/Setup.local (macOS host only)
+test_double_close_on_error (test.test_subprocess.ProcessTestCase.test_double_close_on_error)	starts a thread without @requires_working_threading: pthread stubs (D-4)
+test_double_close_on_error (test.test_subprocess.ProcessTestCaseNoPoll.test_double_close_on_error)	starts a thread without @requires_working_threading: pthread stubs (D-4)
+test_interrupted_write_buffered (test.test_io.CSignalsTest.test_interrupted_write_buffered)	starts a thread without @requires_working_threading: pthread stubs (D-4)
+test_interrupted_write_buffered (test.test_io.PySignalsTest.test_interrupted_write_buffered)	starts a thread without @requires_working_threading: pthread stubs (D-4)
+test_interrupted_write_retry_buffered (test.test_io.CSignalsTest.test_interrupted_write_retry_buffered)	starts a thread without @requires_working_threading: pthread stubs (D-4)
+test_interrupted_write_retry_buffered (test.test_io.PySignalsTest.test_interrupted_write_retry_buffered)	starts a thread without @requires_working_threading: pthread stubs (D-4)
+test_interrupted_write_retry_text (test.test_io.CSignalsTest.test_interrupted_write_retry_text)	starts a thread without @requires_working_threading: pthread stubs (D-4)
+test_interrupted_write_retry_text (test.test_io.PySignalsTest.test_interrupted_write_retry_text)	starts a thread without @requires_working_threading: pthread stubs (D-4)
+test_interrupted_write_text (test.test_io.CSignalsTest.test_interrupted_write_text)	starts a thread without @requires_working_threading: pthread stubs (D-4)
+test_interrupted_write_text (test.test_io.PySignalsTest.test_interrupted_write_text)	starts a thread without @requires_working_threading: pthread stubs (D-4)
+test_interrupted_write_unbuffered (test.test_io.CSignalsTest.test_interrupted_write_unbuffered)	starts a thread without @requires_working_threading: pthread stubs (D-4)
+test_interrupted_write_unbuffered (test.test_io.PySignalsTest.test_interrupted_write_unbuffered)	starts a thread without @requires_working_threading: pthread stubs (D-4)
+test_multibyte_seek_and_tell (test.test_io.CTextIOWrapperTest.test_multibyte_seek_and_tell)	needs CJK codecs (_codecs_jp, _multibytecodec): disabled in amiga/Setup.local
+test_multibyte_seek_and_tell (test.test_io.PyTextIOWrapperTest.test_multibyte_seek_and_tell)	needs CJK codecs (_codecs_jp, _multibytecodec): disabled in amiga/Setup.local
+test_seek_with_encoder_state (test.test_io.CTextIOWrapperTest.test_seek_with_encoder_state)	needs CJK codecs (_codecs_jp, _multibytecodec): disabled in amiga/Setup.local
+test_seek_with_encoder_state (test.test_io.PyTextIOWrapperTest.test_seek_with_encoder_state)	needs CJK codecs (_codecs_jp, _multibytecodec): disabled in amiga/Setup.local
+test_threadsafe_wait (test.test_subprocess.ProcessTestCase.test_threadsafe_wait)	starts a thread without @requires_working_threading: pthread stubs (D-4)
+test_threadsafe_wait (test.test_subprocess.ProcessTestCaseNoPoll.test_threadsafe_wait)	starts a thread without @requires_working_threading: pthread stubs (D-4)
+test_close_fds_after_preexec (test.test_subprocess.POSIXProcessTestCase.test_close_fds_after_preexec)	needs fork() (preexec_fn, user, group, extra_groups): ENOSYS in the vfork-only _posixsubprocess (patch 0008)
+test_extra_groups (test.test_subprocess.POSIXProcessTestCase.test_extra_groups)	needs fork() (preexec_fn, user, group, extra_groups): ENOSYS in the vfork-only _posixsubprocess (patch 0008)
+test_extra_groups_empty_list (test.test_subprocess.POSIXProcessTestCase.test_extra_groups_empty_list)	needs fork() (preexec_fn, user, group, extra_groups): ENOSYS in the vfork-only _posixsubprocess (patch 0008)
+test_group (test.test_subprocess.POSIXProcessTestCase.test_group) (group='staff', close_fds=False)	needs fork() (preexec_fn, user, group, extra_groups): ENOSYS in the vfork-only _posixsubprocess (patch 0008)
+test_group (test.test_subprocess.POSIXProcessTestCase.test_group) (group='staff', close_fds=True)	needs fork() (preexec_fn, user, group, extra_groups): ENOSYS in the vfork-only _posixsubprocess (patch 0008)
+test_group (test.test_subprocess.POSIXProcessTestCase.test_group) (group=20, close_fds=False)	needs fork() (preexec_fn, user, group, extra_groups): ENOSYS in the vfork-only _posixsubprocess (patch 0008)
+test_group (test.test_subprocess.POSIXProcessTestCase.test_group) (group=20, close_fds=True)	needs fork() (preexec_fn, user, group, extra_groups): ENOSYS in the vfork-only _posixsubprocess (patch 0008)
+test_group (test.test_subprocess.POSIXProcessTestCase.test_group) (group=65534, close_fds=False)	needs fork() (preexec_fn, user, group, extra_groups): ENOSYS in the vfork-only _posixsubprocess (patch 0008)
+test_group (test.test_subprocess.POSIXProcessTestCase.test_group) (group=65534, close_fds=True)	needs fork() (preexec_fn, user, group, extra_groups): ENOSYS in the vfork-only _posixsubprocess (patch 0008)
+test_preexec (test.test_subprocess.POSIXProcessTestCase.test_preexec)	needs fork() (preexec_fn, user, group, extra_groups): ENOSYS in the vfork-only _posixsubprocess (patch 0008)
+test_preexec_errpipe_does_not_double_close_pipes (test.test_subprocess.POSIXProcessTestCase.test_preexec_errpipe_does_not_double_close_pipes)	needs fork() (preexec_fn, user, group, extra_groups): ENOSYS in the vfork-only _posixsubprocess (patch 0008)
+test_preexec_exception (test.test_subprocess.POSIXProcessTestCase.test_preexec_exception)	needs fork() (preexec_fn, user, group, extra_groups): ENOSYS in the vfork-only _posixsubprocess (patch 0008)
+test_preexec_gc_module_failure (test.test_subprocess.POSIXProcessTestCase.test_preexec_gc_module_failure)	needs fork() (preexec_fn, user, group, extra_groups): ENOSYS in the vfork-only _posixsubprocess (patch 0008)
+test_surrogates_error_message (test.test_subprocess.POSIXProcessTestCase.test_surrogates_error_message)	needs fork() (preexec_fn, user, group, extra_groups): ENOSYS in the vfork-only _posixsubprocess (patch 0008)
+test_user (test.test_subprocess.POSIXProcessTestCase.test_user) (user='unknown', close_fds=False)	needs fork() (preexec_fn, user, group, extra_groups): ENOSYS in the vfork-only _posixsubprocess (patch 0008)
+test_user (test.test_subprocess.POSIXProcessTestCase.test_user) (user='unknown', close_fds=True)	needs fork() (preexec_fn, user, group, extra_groups): ENOSYS in the vfork-only _posixsubprocess (patch 0008)
+test_user (test.test_subprocess.POSIXProcessTestCase.test_user) (user=501, close_fds=False)	needs fork() (preexec_fn, user, group, extra_groups): ENOSYS in the vfork-only _posixsubprocess (patch 0008)
+test_user (test.test_subprocess.POSIXProcessTestCase.test_user) (user=501, close_fds=True)	needs fork() (preexec_fn, user, group, extra_groups): ENOSYS in the vfork-only _posixsubprocess (patch 0008)
+test_user (test.test_subprocess.POSIXProcessTestCase.test_user) (user=65534, close_fds=False)	needs fork() (preexec_fn, user, group, extra_groups): ENOSYS in the vfork-only _posixsubprocess (patch 0008)
+test_user (test.test_subprocess.POSIXProcessTestCase.test_user) (user=65534, close_fds=True)	needs fork() (preexec_fn, user, group, extra_groups): ENOSYS in the vfork-only _posixsubprocess (patch 0008)

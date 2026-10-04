@@ -1,0 +1,56 @@
+# Modules/Setup.local for the reduced AmigaOS build (copied into the build
+# tree by the top-level Makefile). The SAME file serves the host proof build
+# (build/host) and the m68k build (build/m68k), so the host proves the module
+# set the Amiga gets. Every module is static (MODULE_BUILDTYPE=static); what is
+# listed here is left out. Owner decision: the size trade-offs are in the
+# ledger (thoughts/shared/plans/2026-10-04-py1-progress.md, "Module set").
+
+*static*
+# vfork() only, no fork(): the AmigaOS code path, also on the host proof
+_posixsubprocess _posixsubprocess.c -DPy_SUBPROCESS_VFORK_ONLY
+
+*disabled*
+# no library on m68k-amigaos (zlib, bzip2, xz, zstd, OpenSSL, SQLite, ...)
+zlib
+_bz2
+_lzma
+_zstd
+_ssl
+_hashlib
+_sqlite3
+_dbm
+_gdbm
+readline
+_curses
+_curses_panel
+_tkinter
+_uuid
+_ctypes
+# no threads, no shared memory, no fork, no subinterpreters
+_multiprocessing
+_posixshmem
+_interpreters
+_interpchannels
+_interpqueues
+_remote_debugging
+# size: pure-Python fallbacks exist (_pydecimal) or rarely needed
+_decimal
+_lsprof
+mmap
+syslog
+pyexpat
+_elementtree
+_codecs_cn
+_codecs_hk
+_codecs_iso2022
+_codecs_jp
+_codecs_kr
+_codecs_tw
+_multibytecodec
+# macOS only (host proof parity)
+_scproxy
+# test-only
+xxsubtype
+_xxtestfuzz
+xxlimited
+xxlimited_35
