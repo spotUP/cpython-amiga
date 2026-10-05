@@ -8,7 +8,9 @@
 #   C1   only ixemul's libc (no member of the toolchain's newlib libc.a
 #        except the vetted wide-string ones), every stub on a 48.2
 #        vector, and the sizes
+#   G-1  the build's cc1 is the patched one and emits the right bit tests
 # Prints one [OK]/[FAIL] line per check; exit status = number of failures.
+#   tools/check-m68k.sh [--gcc-only]
 set -u
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 AMIGA=${AMIGA:-$HOME/opt/amiga}
@@ -21,10 +23,24 @@ ok()   { echo "[OK]   $1"; }
 bad()  { echo "[FAIL] $1"; fails=$((fails+1)); }
 chk()  { if eval "$2"; then ok "$1"; else bad "$1"; fi; }
 
+# G-1: the build's cc1 (amiga/gcc/0001) tests the right byte. Before the fix
+# `flags & 1` on an int argument was `btst #-24,(16,a5)` (bit 24), and
+# PyFile_WriteObject ignored Py_PRINT_RAW: print() wrote repr()s.
+CCB="$AMIGA/bin/m68k-amigaos-gcc -mcrt=ixemul -B$ROOT/build/gcc/bin/"
+chk "G-1 the driver runs build/gcc/bin/cc1" \
+  "[ \"\$($CCB -print-prog-name=cc1)\" = '$ROOT/build/gcc/bin/cc1' ]"
+chk "G-1 tests/gcc_btst.c: flags & 1 tests the low byte (btst #0,(19,a5))" \
+  "$CCB -m68020-60 -O1 -S -o - '$ROOT/tests/gcc_btst.c' | grep -q 'btst #0,(19,a5)' && \
+   ! $CCB -m68020-60 -O1 -S -o - '$ROOT/tests/gcc_btst.c' | grep -q 'btst #-'"
+[ "${1:-}" = "--gcc-only" ] && exit $fails
+
 [ -f "$EXE" ] && [ -f "$MAP" ] || { echo "[FAIL] build first: make m68k (needs $EXE and $MAP)"; exit 1; }
+chk "G-1 PyFile_WriteObject tests flags' low byte (Py_PRINT_RAW)" \
+  "$AMIGA/bin/m68k-amigaos-objdump -d '$B/Objects/fileobject.o' | \
+   awk '/<_PyFile_WriteObject>:/,/rts/' | grep -q 'btst #0,a5@(19)'"
 
 chk "C2.1 alignment asserts (tests/align_check.c)" \
-  "$AMIGA/bin/m68k-amigaos-gcc -mcrt=ixemul -m68020-60 -std=c11 -fsyntax-only \
+  "$CCB -m68020-60 -std=c11 -fsyntax-only \
    -I$B/Include -I$B -I$ROOT/vendor/cpython/Include -I$ROOT/vendor/cpython/Include/internal \
    -I$ROOT/amiga/include -I$HOME/Code/neovim-amiga/amiga/compat/include $ROOT/tests/align_check.c"
 chk "C2.3 __atomic_* come from libamigacompat.a(amiga-os.o)" \

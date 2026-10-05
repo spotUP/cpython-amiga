@@ -21,7 +21,7 @@ B         = build/m68k
 H         = build/host
 J        ?= -j4
 
-.PHONY: all fetch patches host host-test test-stack test-wcstol test-inet test-getentropy compat m68k check-m68k zip dist dist-host-check clean
+.PHONY: all fetch patches cc1 test-gcc-btst host host-test test-stack test-wcstol test-inet test-getentropy compat m68k check-m68k zip dist dist-host-check clean
 all: m68k
 
 # ---- upstream + our patch series ---------------------------------------------
@@ -64,15 +64,28 @@ $(H)/stack_limits_test: tests/stack_limits_test.c $(SRC)/Include/internal/pycore
 	mkdir -p $(H)
 	cc -Wall -I$(SRC)/Include/internal -o $@ tests/stack_limits_test.c
 
+# ---- G-1: this port's cc1 (bebbo's gcc + amiga/gcc/*.patch) ------------------
+# The installed cc1 tests the wrong byte for `x & 1` on an int in memory
+# (amiga/gcc/0001). Every m68k object is compiled with -B$(GCCB)/, which
+# makes the installed driver run this cc1. The installed toolchain is not
+# touched (request G-1 in the ledger).
+GCCB = $(CURDIR)/build/gcc/bin
+CC1  = $(GCCB)/cc1
+cc1: $(CC1)
+$(CC1): tools/build-cc1.sh $(wildcard amiga/gcc/*.patch)
+	tools/build-cc1.sh
+test-gcc-btst: $(CC1)
+	tools/check-m68k.sh --gcc-only
+
 # ---- compat: neovim-amiga's amiga/compat, built with this CPU/FPU ------------
 COMPAT_SRCS = netdb.c posix.c eprintf.c math.c
 COMPAT_OBJS = $(addprefix $(B)/compat/,$(COMPAT_SRCS:.c=.o)) $(B)/compat/amiga-os.o
-ACFLAGS     = -mcrt=ixemul $(ACPU) -O2 -fno-strict-aliasing -Wall -Wno-unused
-$(B)/compat/%.o: $(NVCOMPAT)/%.c
+ACFLAGS     = -mcrt=ixemul -B$(GCCB)/ $(ACPU) -O2 -fno-strict-aliasing -Wall -Wno-unused
+$(B)/compat/%.o: $(NVCOMPAT)/%.c $(CC1)
 	@mkdir -p $(dir $@)
 	$(AGCC) $(ACFLAGS) -I$(NVCOMPAT)/include -c -o $@ $<
 # NDK headers only; the atomic builtins are defined there, not called
-$(B)/compat/amiga-os.o: $(NVCOMPAT)/amiga-os.c
+$(B)/compat/amiga-os.o: $(NVCOMPAT)/amiga-os.c $(CC1)
 	@mkdir -p $(dir $@)
 	$(AGCC) $(ACFLAGS) -fno-builtin -c -o $@ $<
 $(B)/libamigacompat.a: $(COMPAT_OBJS)
@@ -80,7 +93,7 @@ $(B)/libamigacompat.a: $(COMPAT_OBJS)
 	$(AAR) rcs $@ $(COMPAT_OBJS)
 # this port's own additions (amiga/compat): newlib libm's errno hook,
 # wcstol, inet_ntop/pton, getentropy
-$(B)/cpyamiga/%.o: amiga/compat/%.c
+$(B)/cpyamiga/%.o: amiga/compat/%.c $(CC1)
 	@mkdir -p $(dir $@)
 	$(AGCC) $(ACFLAGS) -I$(NVCOMPAT)/include -c -o $@ $<
 $(B)/libcpyamiga.a: $(B)/cpyamiga/newlib-errno.o $(B)/cpyamiga/wcstol.o $(B)/cpyamiga/inet.o \
@@ -101,8 +114,13 @@ $(B)/libnewlibwcs.a: $(NEWLIBC)
 compat: $(B)/libamigacompat.a $(B)/libcpyamiga.a $(B)/libnewlibwcs.a
 
 # ---- C1: cross build ---------------------------------------------------------
-$(B)/Makefile: $(SRC)/configure amiga/config.site $(B)/libamigacompat.a $(B)/libcpyamiga.a $(B)/libnewlibwcs.a
+$(B)/Makefile: $(SRC)/configure amiga/config.site tools/configure-m68k.sh $(CC1) \
+               $(B)/libamigacompat.a $(B)/libcpyamiga.a $(B)/libnewlibwcs.a
 	tools/configure-m68k.sh
+	@# a new cc1 or new configure answers: CPython's Makefile does not track
+	@# either, and an unchanged pyconfig.h keeps its date -- recompile all
+	find $(B)/Modules $(B)/Objects $(B)/Parser $(B)/Programs $(B)/Python -name '*.o' -delete
+	rm -f $(B)/libpython3.14.a $(B)/python.exe
 m68k: $(B)/Makefile
 	cp amiga/Setup.local $(B)/Modules/Setup.local
 	$(MAKE) -C $(B) $(J) python.exe > $(B)/make.log 2>&1 || (tail -30 $(B)/make.log; false)
