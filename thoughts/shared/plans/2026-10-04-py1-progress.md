@@ -333,6 +333,9 @@ host-tests W35 + c0_config + c2 pass, `tools/fetch-cpython.sh` recreates the tre
    `OK   subprocess over vfork (C4.1), bare name on the command path: ...` (C:Which prints
    `C:Which`). If that line FAILs with rc 0 and empty stdout, the lookup worked and the
    capture of a native program's output through ixemul's pipe is the next suspect.
+   The last lines print sys.path and prefix: prefix may now read `/VTC/Python3` (getpath
+   finds it from the real executable, the assign resolved, as POSIX resolves symlinks)
+   instead of the compiled-in `/Python3`; both are the same drawer.
 5. Bare name + program directory: `cd Python3:bin`, then
    `python3 -c "import sys; print(sys.executable)"`
    PASS: `/VTC/Python3/bin/python3` (real_executable from GetProgramDir: the volume path).
