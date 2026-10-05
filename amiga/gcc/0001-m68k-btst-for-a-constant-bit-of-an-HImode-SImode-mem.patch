@@ -1,0 +1,84 @@
+From 9202c5fe13b0c5041e0286b0f3c3136dd58fd5ad Mon Sep 17 00:00:00 2001
+From: cpython-amiga <noreply@anthropic.com>
+Date: Mon, 5 Oct 2026 12:25:55 +0200
+Subject: [PATCH] m68k: btst for a constant bit of an HImode/SImode memory
+ operand
+
+*tst_bftst_mem (SImode), *tst_bftst_mem1 (HImode) and *tst_bftst_mem2
+(QImode) turn a one-bit zero_extract at a constant position into btst on
+the first byte with bit number 7 - P.  For P >= 8 that is negative and
+btst masks it to 3 bits: `flags & 1` on an int in memory became
+`btst #-24,(16,a5)`, testing bit 24.  Address the byte P / 8 and test
+bit 7 - P % 8, as the "do" btst pattern above does.
+
+Found by CPython on AmigaOS: PyFile_WriteObject's `flags & Py_PRINT_RAW`
+was always false, so print() wrote repr()s.
+
+---
+ gcc/config/m68k/m68k.md | 36 +++++++++++++++++++++++++++---------
+ 1 file changed, 27 insertions(+), 9 deletions(-)
+
+diff --git a/gcc/config/m68k/m68k.md b/gcc/config/m68k/m68k.md
+index ba83ff41a..94f984e34 100644
+--- a/gcc/config/m68k/m68k.md
++++ b/gcc/config/m68k/m68k.md
+@@ -6148,9 +6148,15 @@
+   if (operands[1] == const1_rtx
+       && GET_CODE (operands[2]) == CONST_INT)
+     {
+-      int width = GET_CODE (operands[0]) == REG ? 31 : 7;
+-      return output_btst (operands,
+-			  GEN_INT (width - INTVAL (operands[2])),
++      /* btst on memory tests one byte: the bit field position counts
++	 from the MSB of the first byte (BITS_BIG_ENDIAN), so position P
++	 is bit 7 - P % 8 of the byte at offset P / 8.  For an HImode or
++	 SImode operand P goes up to 15 or 31; 7 - P alone gave a negative
++	 bit number on the first byte (btst #-24,(16,a5) for the low bit
++	 of an int argument: bit 24 tested instead of bit 0).  */
++      HOST_WIDE_INT pos = INTVAL (operands[2]);
++      operands[0] = adjust_address (operands[0], QImode, pos / 8);
++      return output_btst (operands, GEN_INT (7 - pos % 8),
+ 			  operands[0], insn, 1000);
+       /* Pass 1000 as SIGNPOS argument so that btst will
+          not think we are testing the sign bit for an `and'
+@@ -6172,9 +6178,15 @@
+   if (operands[1] == const1_rtx
+       && GET_CODE (operands[2]) == CONST_INT)
+     {
+-      int width = GET_CODE (operands[0]) == REG ? 31 : 7;
+-      return output_btst (operands,
+-			  GEN_INT (width - INTVAL (operands[2])),
++      /* btst on memory tests one byte: the bit field position counts
++	 from the MSB of the first byte (BITS_BIG_ENDIAN), so position P
++	 is bit 7 - P % 8 of the byte at offset P / 8.  For an HImode or
++	 SImode operand P goes up to 15 or 31; 7 - P alone gave a negative
++	 bit number on the first byte (btst #-24,(16,a5) for the low bit
++	 of an int argument: bit 24 tested instead of bit 0).  */
++      HOST_WIDE_INT pos = INTVAL (operands[2]);
++      operands[0] = adjust_address (operands[0], QImode, pos / 8);
++      return output_btst (operands, GEN_INT (7 - pos % 8),
+ 			  operands[0], insn, 1000);
+       /* Pass 1000 as SIGNPOS argument so that btst will
+          not think we are testing the sign bit for an `and'
+@@ -6196,9 +6208,15 @@
+   if (operands[1] == const1_rtx
+       && GET_CODE (operands[2]) == CONST_INT)
+     {
+-      int width = GET_CODE (operands[0]) == REG ? 31 : 7;
+-      return output_btst (operands,
+-			  GEN_INT (width - INTVAL (operands[2])),
++      /* btst on memory tests one byte: the bit field position counts
++	 from the MSB of the first byte (BITS_BIG_ENDIAN), so position P
++	 is bit 7 - P % 8 of the byte at offset P / 8.  For an HImode or
++	 SImode operand P goes up to 15 or 31; 7 - P alone gave a negative
++	 bit number on the first byte (btst #-24,(16,a5) for the low bit
++	 of an int argument: bit 24 tested instead of bit 0).  */
++      HOST_WIDE_INT pos = INTVAL (operands[2]);
++      operands[0] = adjust_address (operands[0], QImode, pos / 8);
++      return output_btst (operands, GEN_INT (7 - pos % 8),
+ 			  operands[0], insn, 1000);
+       /* Pass 1000 as SIGNPOS argument so that btst will
+          not think we are testing the sign bit for an `and'
+-- 
+2.50.1 (Apple Git-155)
+

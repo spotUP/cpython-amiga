@@ -1,7 +1,7 @@
 From db85d793ae55e67a0836539a912e77fa2b4b0768 Mon Sep 17 00:00:00 2001
 From: spotUP <retroranksmail@gmail.com>
 Date: Sun, 4 Oct 2026 21:18:06 +0200
-Subject: [PATCH 1/9] configure: m68k-amigaos host, --with-pthread-stubs,
+Subject: [PATCH 01/13] configure: m68k-amigaos host, --with-pthread-stubs,
  static modules
 
 AmigaOS 3.x with ixemul is an out-of-tree cross target (MACHDEP amigaos).

@@ -28,6 +28,9 @@ CPython 3.14 for AmigaOS 3.x / 68020-68060 / ixemul 48.2 (UP-Term plan PY1, Trac
 | Host proof build (macOS, the reduced configuration) | `make host` |
 | Host tests: stack limits, wcstol, inet, then the stdlib set (resumable, `build/host/tests.tsv`) | `make host-test` |
 | One stdlib test / this repo's tests / only failures | `tools/host-tests.sh test_re` / `tools/host-tests.sh tests/test_c0_config.py` / `tools/host-tests.sh --failed` |
+| This port's cc1 (bebbo's gcc + `amiga/gcc/*.patch`, request G-1), used through `-B` | `make cc1` |
+| The G-1 checks alone (driver runs that cc1, bit tests right) | `make test-gcc-btst` |
+| Host test of the AmigaDOS path helpers | `make test-amiga-path` |
 | Compat libraries for m68k | `make compat` |
 | Configure for m68k (once; re-run after config.site changes) | `tools/configure-m68k.sh` |
 | Build python for m68k (`build/m68k/python.exe`, map `python.map`) | `make m68k` |

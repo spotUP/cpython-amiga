@@ -1,7 +1,7 @@
 From d86460bc95fa0d819178f36d6c46628b29cec348 Mon Sep 17 00:00:00 2001
 From: spotUP <retroranksmail@gmail.com>
 Date: Sun, 4 Oct 2026 22:04:46 +0200
-Subject: [PATCH 8/9] _posixsubprocess: a vfork()-only mode for AmigaOS
+Subject: [PATCH 08/13] _posixsubprocess: a vfork()-only mode for AmigaOS
 
 ixemul has vfork() and no fork(). On AmigaOS (or with
 -DPy_SUBPROCESS_VFORK_ONLY on any host with vfork, for testing) the vfork

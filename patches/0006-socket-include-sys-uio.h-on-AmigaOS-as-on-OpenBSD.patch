@@ -1,7 +1,7 @@
 From 1280f12399693e9cd40231042e4dc635a752b0b9 Mon Sep 17 00:00:00 2001
 From: spotUP <retroranksmail@gmail.com>
 Date: Sun, 4 Oct 2026 22:04:45 +0200
-Subject: [PATCH 6/9] socket: include <sys/uio.h> on AmigaOS as on OpenBSD
+Subject: [PATCH 06/13] socket: include <sys/uio.h> on AmigaOS as on OpenBSD
 
 ixemul's <sys/socket.h> (4.4BSD) uses struct iovec without defining it.
 

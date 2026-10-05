@@ -1,0 +1,29 @@
+From fa3b6200d1228fc97ecfc4061c54803dc51a399d Mon Sep 17 00:00:00 2001
+From: cpython-amiga <noreply@anthropic.com>
+Date: Mon, 5 Oct 2026 12:37:47 +0200
+Subject: [PATCH] fibonacci_heap.h: build with clang 17 (union_with typo)
+
+heapb->min names the member function min(), not the node: Apple clang 17
+rejects the template ("reference to non-static member function must be
+called"). Compare the m_min nodes, as upstream GCC later fixed it. Build
+only: union_with is not instantiated, the generated code is unchanged.
+---
+ gcc/fibonacci_heap.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/gcc/fibonacci_heap.h b/gcc/fibonacci_heap.h
+index c6c2a45b6..6e1c81b0e 100644
+--- a/gcc/fibonacci_heap.h
++++ b/gcc/fibonacci_heap.h
+@@ -478,7 +478,7 @@ fibonacci_heap<K,V>::union_with (fibonacci_heap<K,V> *heapb)
+   heapa->m_nodes += heapb->m_nodes;
+ 
+   /* And set the new minimum, if it's changed.  */
+-  if (heapb->min->compare (heapa->min) < 0)
++  if (heapb->m_min->compare (heapa->m_min) < 0)
+     heapa->m_min = heapb->m_min;
+ 
+   delete (heapb);
+-- 
+2.50.1 (Apple Git-155)
+

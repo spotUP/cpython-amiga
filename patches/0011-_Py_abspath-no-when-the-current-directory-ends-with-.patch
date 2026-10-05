@@ -1,0 +1,35 @@
+From 6ca9664b76689cbd83e47943652b4b1ddb70fd04 Mon Sep 17 00:00:00 2001
+From: spotUP <retroranksmail@gmail.com>
+Date: Mon, 5 Oct 2026 12:49:54 +0200
+Subject: [PATCH 11/13] _Py_abspath: no "//" when the current directory ends
+ with a separator
+
+The join always added SEP, so a relative path made absolute in "/" read
+"//path", and in an AmigaOS volume's root, where ixemul's getcwd() returns
+"/Ram Disk/", "/Ram Disk//path" (sys.executable, the script's __file__).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01XtgdajdQMdzshhCNNkoeFN
+---
+ Python/fileutils.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/Python/fileutils.c b/Python/fileutils.c
+index 78603d4..a93433e 100644
+--- a/Python/fileutils.c
++++ b/Python/fileutils.c
+@@ -2211,6 +2211,11 @@ _Py_abspath(const wchar_t *path, wchar_t **abspath_p)
+     }
+ 
+     size_t cwd_len = wcslen(cwd);
++    /* "/", or "/Ram Disk/" from ixemul in a volume's root, already ends
++       with SEP: no "//" */
++    if (cwd_len > 0 && cwd[cwd_len - 1] == SEP) {
++        cwd_len--;
++    }
+     size_t path_len = wcslen(path);
+     size_t len = cwd_len + 1 + path_len + 1;
+     if (len <= (size_t)PY_SSIZE_T_MAX / sizeof(wchar_t)) {
+-- 
+2.50.1 (Apple Git-155)
+

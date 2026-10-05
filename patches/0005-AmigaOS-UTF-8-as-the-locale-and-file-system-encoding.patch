@@ -1,7 +1,7 @@
 From 0a770572c31ca89be306c6dd5a53e751c65cb05a Mon Sep 17 00:00:00 2001
 From: spotUP <retroranksmail@gmail.com>
 Date: Sun, 4 Oct 2026 22:04:45 +0200
-Subject: [PATCH 5/9] AmigaOS: UTF-8 as the locale and file system encoding
+Subject: [PATCH 05/13] AmigaOS: UTF-8 as the locale and file system encoding
 
 ixemul has only the "C" locale (no nl_langinfo items beyond eight, no
 mbrtowc) and UP-Term's console speaks UTF-8: force UTF-8 as Android and
