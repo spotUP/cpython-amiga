@@ -1,4 +1,4 @@
-From 7605bdb82207ff070d6295f8d25a129a9a623fe3 Mon Sep 17 00:00:00 2001
+From 01c15ae02d6b66aed551e458512678ef184c8f4a Mon Sep 17 00:00:00 2001
 From: cpython-amiga <noreply@anthropic.com>
 Date: Mon, 5 Oct 2026 14:20:32 +0200
 Subject: [PATCH] bbb opt_strcpy: check the condition codes from a clean
@@ -14,14 +14,14 @@ sum(): `result = temp; if (!result) break;` after a Py_DECREF that called
 the deallocator: NULL without an exception). CC_STATUS_INIT first, as the
 other NOTICE_UPDATE_CC users in this file do.
 ---
- gcc/bbb-opts.c | 6 +++++-
- 1 file changed, 5 insertions(+), 1 deletion(-)
+ gcc/bbb-opts.c | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
 
 diff --git a/gcc/bbb-opts.c b/gcc/bbb-opts.c
-index 32b2ab3d4..8c84940f9 100644
+index 32b2ab3d4..15021201b 100644
 --- a/gcc/bbb-opts.c
 +++ b/gcc/bbb-opts.c
-@@ -3414,7 +3414,11 @@ opt_strcpy ()
+@@ -3414,9 +3414,16 @@ opt_strcpy ()
  //	      if (CONST_INT_P(src) && INTVAL(src) == 0 && find_reg_note (insn, REG_DEAD, dst))
  	      if (REG_P(dst) && REGNO(dst) == REGNO(theReg) && CONST_INT_P(src) && INTVAL(src) == 0 && is_reg_dead (REGNO(dst), index))
  		{
@@ -32,8 +32,14 @@ index 32b2ab3d4..8c84940f9 100644
 +		     `move x,aN` -- which sets no flags -- and drop the tst.  */
 +		  CC_STATUS_INIT;
  		  NOTICE_UPDATE_CC(PATTERN (reg2x), reg2x);
- 		  if (cc_status.flags == 0 && rtx_equal_p (dst, cc_status.value2))
+-		  if (cc_status.flags == 0 && rtx_equal_p (dst, cc_status.value2))
++		  /* and never into an address register: a move to An sets no
++		     flags, so it can never stand in for the tst (eriQue) */
++		  if (cc_status.flags == 0 && rtx_equal_p (dst, cc_status.value2)
++		      && !ADDRESS_REG_P (SET_DEST (single_set (reg2x))))
  		    {
+ 		      rtx pattern = gen_rtx_SET(SET_DEST(single_set (reg2x)), SET_SRC(single_set (x2reg)));
+ 		      rtx_insn * newinsn = make_insn_raw (pattern);
 -- 
 2.50.1 (Apple Git-155)
 
