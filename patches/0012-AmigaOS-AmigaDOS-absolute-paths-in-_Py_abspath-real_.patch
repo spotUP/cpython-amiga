@@ -1,0 +1,304 @@
+From 94976e0c20f270d07cee6350c7f815c7889b6448 Mon Sep 17 00:00:00 2001
+From: spotUP <retroranksmail@gmail.com>
+Date: Mon, 5 Oct 2026 12:49:54 +0200
+Subject: [PATCH 12/12] AmigaOS: AmigaDOS-absolute paths in _Py_abspath,
+ real_executable from DOS
+
+An AmigaDOS shell passes argv[0] and file arguments as typed:
+"Python3:bin/python3", "Work:script.py". ixemul opens those, but
+_Py_abspath() treated them as relative and joined them to the current
+directory: sys.executable became '/Ram Disk//Python3:bin/python3' and
+`python3 Python3:script.py` could not open its script ("can't open
+file", status 2).
+
+_Py_abspath() now gives an AmigaDOS-absolute path (a ':' in the first
+component) in ixemul's Unix view, the form its getcwd() returns:
+"Vol:dir/f" -> "/Vol/dir/f". PROGDIR: and ":" name a directory only this
+process can resolve; they become that directory's volume path
+(NameFromLock). getpath's real_executable comes from DOS (program
+directory + command name), so sys.executable is known also when the shell
+found a bare "python3" on its command path.
+
+The string helpers are pure (pycore_amigaos.h, tested on the host);
+the DOS calls live in Python/amigaos.c (NDK headers only).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01XtgdajdQMdzshhCNNkoeFN
+---
+ Include/internal/pycore_amigaos.h | 62 +++++++++++++++++++++++
+ Modules/getpath.c                 | 19 ++++++++
+ Python/amigaos.c                  | 38 +++++++++++++++
+ Python/fileutils.c                | 81 +++++++++++++++++++++++++++++++
+ 4 files changed, 200 insertions(+)
+
+diff --git a/Include/internal/pycore_amigaos.h b/Include/internal/pycore_amigaos.h
+index cc4f832..2760f99 100644
+--- a/Include/internal/pycore_amigaos.h
++++ b/Include/internal/pycore_amigaos.h
+@@ -3,6 +3,7 @@
+ #ifndef Py_INTERNAL_AMIGAOS_H
+ #define Py_INTERNAL_AMIGAOS_H
+ 
++#include <stddef.h>               // size_t, wchar_t
+ #include <stdint.h>               // uintptr_t
+ 
+ /* The C stack of the running task, from exec's Task structure
+@@ -31,4 +32,65 @@ _PyAmiga_StackLimits(uintptr_t sp, uintptr_t lower, uintptr_t upper,
+     return 0;
+ }
+ 
++/* Volume paths of directories only this process can name (Python/amigaos.c,
++ * NDK only): the program's directory (PROGDIR:) and the root of the current
++ * volume (":"), as NameFromLock() gives them ("VTC:Python3/bin"); and the
++ * running program's file (that directory plus the file part of the command
++ * name). Each returns 1 with the path in buf, 0 if unknown (no program
++ * directory: resident program, started from Workbench). */
++extern int _PyAmiga_ProgramDir(char *buf, long size);
++extern int _PyAmiga_CurrentVolume(char *buf, long size);
++extern int _PyAmiga_ProgramPath(char *buf, long size);
++
++/* AmigaDOS-absolute paths: the first component names a device, volume or
++ * assign ("Work:dir/f", "PROGDIR:f", ":f" = the current volume's root).
++ * Returns the length of that prefix including the ':' (0 if the path is
++ * not AmigaDOS-absolute: "/Work/f", "dir/f", "dir/a:b"). Pure. */
++static inline size_t
++_PyAmiga_DevicePrefix(const wchar_t *path)
++{
++    for (size_t i = 0; path[i] && path[i] != L'/'; i++) {
++        if (path[i] == L':') {
++            return i + 1;
++        }
++    }
++    return 0;
++}
++
++/* ixemul's Unix view of an AmigaDOS-absolute path, the form its getcwd()
++ * returns and os.path works with: `base` is "Vol:dir" (device prefix of
++ * `n` >= 2 characters, from _PyAmiga_DevicePrefix), `rest` a relative path
++ * to append (may be empty). "Vol:dir" + "f" -> "/Vol/dir/f", "Vol:" + ""
++ * -> "/Vol". Writes a NUL-terminated string of at most `size` wide chars to
++ * `out`; returns its length, or -1 if it does not fit. Pure. */
++static inline long
++_PyAmiga_UnixPath(const wchar_t *base, size_t n, const wchar_t *rest,
++                  wchar_t *out, size_t size)
++{
++    size_t k = 0;
++    const wchar_t *dir = base + n;
++#define _PYAMIGA_PUT(c) do { if (k + 1 >= size) return -1; out[k++] = (c); } while (0)
++    _PYAMIGA_PUT(L'/');
++    for (size_t i = 0; i + 1 < n; i++) {
++        _PYAMIGA_PUT(base[i]);                   /* the name, without ':' */
++    }
++    if (*dir) {
++        _PYAMIGA_PUT(L'/');
++        while (*dir) {
++            _PYAMIGA_PUT(*dir++);
++        }
++    }
++    if (*rest) {
++        if (out[k - 1] != L'/') {
++            _PYAMIGA_PUT(L'/');
++        }
++        while (*rest) {
++            _PYAMIGA_PUT(*rest++);
++        }
++    }
++#undef _PYAMIGA_PUT
++    out[k] = L'\0';
++    return (long)k;
++}
++
+ #endif /* !Py_INTERNAL_AMIGAOS_H */
+diff --git a/Modules/getpath.c b/Modules/getpath.c
+index 1e75993..6c16a16 100644
+--- a/Modules/getpath.c
++++ b/Modules/getpath.c
+@@ -9,6 +9,9 @@
+ 
+ #include "marshal.h"              // PyMarshal_ReadObjectFromString
+ #include "osdefs.h"               // DELIM
++#ifdef __amigaos__
++#  include "pycore_amigaos.h"     // _PyAmiga_ProgramPath()
++#endif
+ #include <wchar.h>
+ 
+ #ifdef MS_WINDOWS
+@@ -797,6 +800,22 @@ progname_to_dict(PyObject *dict, const char *key)
+         PyMem_RawFree(path);
+         break;
+     }
++#elif defined(__amigaos__)
++    // The program's directory and file name from DOS, in ixemul's Unix
++    // view: argv[0] is whatever the user typed ("python3" found on the
++    // shell's command path, "Python3:bin/python3", "PROGDIR:python3").
++    char path[MAXPATHLEN + 1];
++    if (_PyAmiga_ProgramPath(path, sizeof(path))) {
++        wchar_t *wpath = Py_DecodeLocale(path, NULL);
++        wchar_t *abs = NULL;
++        if (wpath != NULL && _Py_abspath(wpath, &abs) == 0 && abs != NULL) {
++            int r = wchar_to_dict(dict, key, abs);
++            PyMem_RawFree(abs);
++            PyMem_RawFree(wpath);
++            return r;
++        }
++        PyMem_RawFree(wpath);
++    }
+ #endif
+     return PyDict_SetItemString(dict, key, Py_None) == 0;
+ }
+diff --git a/Python/amigaos.c b/Python/amigaos.c
+index 84a327c..ed1ccbe 100644
+--- a/Python/amigaos.c
++++ b/Python/amigaos.c
+@@ -1,7 +1,9 @@
+ /* AmigaOS 3.x platform glue for CPython (out-of-tree m68k-amigaos port).
+  * Only NDK headers here: exec's and ixemul's headers do not mix.
+  * Linked through MACHDEP_OBJS (amiga/config.site of cpython-amiga). */
++#include <dos/dos.h>
+ #include <exec/tasks.h>
++#include <proto/dos.h>
+ #include <proto/exec.h>
+ #include <stdint.h>
+ 
+@@ -18,3 +20,39 @@ _PyAmiga_TaskStack(uintptr_t *lower, uintptr_t *upper)
+     *lower = (uintptr_t)me->tc_SPLower;
+     *upper = (uintptr_t)me->tc_SPUpper;
+ }
++
++/* Paths only this process can name, for _Py_abspath() and getpath's
++ * real_executable (pycore_amigaos.h). GetProgramDir() rather than
++ * Lock("PROGDIR:"): without a program directory DOS would look for a
++ * volume called PROGDIR and put up an "insert volume" requester. */
++int
++_PyAmiga_ProgramDir(char *buf, long size)
++{
++    BPTR dir = GetProgramDir();
++    return dir && NameFromLock(dir, (STRPTR)buf, size);
++}
++
++int
++_PyAmiga_CurrentVolume(char *buf, long size)
++{
++    BPTR root = Lock((CONST_STRPTR)":", SHARED_LOCK);
++    int ok = root && NameFromLock(root, (STRPTR)buf, size);
++    if (root) {
++        UnLock(root);
++    }
++    return ok;
++}
++
++/* The program's directory plus the file part of the command name the shell
++ * ran ("Python3:bin/python3" -> "VTC:Python3/bin/python3"), whatever form
++ * argv[0] has and whether or not the shell found it on its command path. */
++int
++_PyAmiga_ProgramPath(char *buf, long size)
++{
++    char name[256];
++    if (!GetProgramName((STRPTR)name, sizeof(name)) || !name[0]) {
++        return 0;
++    }
++    return _PyAmiga_ProgramDir(buf, size)
++           && AddPart((STRPTR)buf, FilePart((STRPTR)name), size);
++}
+diff --git a/Python/fileutils.c b/Python/fileutils.c
+index a93433e..a708f37 100644
+--- a/Python/fileutils.c
++++ b/Python/fileutils.c
+@@ -2176,6 +2176,80 @@ _Py_isabs(const wchar_t *path)
+ }
+ 
+ 
++#ifdef __amigaos__
++#include "pycore_amigaos.h"       // _PyAmiga_DevicePrefix()
++
++static int
++amiga_is_progdir(const wchar_t *path)
++{
++    static const char progdir[] = "progdir:";
++    for (size_t i = 0; progdir[i]; i++) {
++        wchar_t c = path[i];
++        if (c >= L'A' && c <= L'Z') {
++            c += L'a' - L'A';
++        }
++        if (c != (wchar_t)progdir[i]) {
++            return 0;
++        }
++    }
++    return 1;
++}
++
++/* An AmigaDOS-absolute path -- "Python3:bin/python3" as a shell passes
++   argv[0], "Work:script.py" on the command line -- in ixemul's Unix view,
++   "/Python3/bin/python3": ixemul opens both, but os.path and getpath only
++   understand the second, and joining the first to the current directory
++   named nothing. PROGDIR: and ":" become the volume path of the directory
++   they name, which another process cannot resolve.
++   Returns 0 if the path is not AmigaDOS-absolute, 1 with the result in
++   *abspath_p (NULL on memory error), -1 on error. */
++static int
++amiga_abspath(const wchar_t *path, wchar_t **abspath_p)
++{
++    size_t n = _PyAmiga_DevicePrefix(path);
++    if (n == 0) {
++        return 0;
++    }
++    const wchar_t *base = path, *rest = L"";
++    wchar_t *resolved = NULL;
++    char name[MAXPATHLEN + 1];
++    int found = 0;
++    if (n == 1) {
++        found = _PyAmiga_CurrentVolume(name, sizeof(name));
++        if (!found) {
++            return -1;
++        }
++    }
++    else if (n == 8 && amiga_is_progdir(path)) {
++        /* no program directory: keep PROGDIR (ixemul resolves it in this
++           process) */
++        found = _PyAmiga_ProgramDir(name, sizeof(name));
++    }
++    if (found) {
++        resolved = Py_DecodeLocale(name, NULL);
++        if (resolved == NULL) {
++            return -1;
++        }
++        size_t m = _PyAmiga_DevicePrefix(resolved);
++        if (m < 2) {
++            PyMem_RawFree(resolved);
++            return -1;
++        }
++        base = resolved;
++        rest = path + n;
++        n = m;
++    }
++    size_t size = wcslen(base) + wcslen(rest) + 3;
++    wchar_t *out = PyMem_RawMalloc(size * sizeof(wchar_t));
++    if (out != NULL) {
++        (void)_PyAmiga_UnixPath(base, n, rest, out, size);  /* fits: size */
++    }
++    PyMem_RawFree(resolved);
++    *abspath_p = out;
++    return 1;
++}
++#endif
++
+ /* Get an absolute path.
+    On error (ex: fail to get the current directory), return -1.
+    On memory allocation failure, set *abspath_p to NULL and return 0.
+@@ -2195,6 +2269,13 @@ _Py_abspath(const wchar_t *path, wchar_t **abspath_p)
+         return 0;
+     }
+ 
++#ifdef __amigaos__
++    int amiga = amiga_abspath(path, abspath_p);
++    if (amiga != 0) {
++        return amiga < 0 ? -1 : 0;
++    }
++#endif
++
+     if (_Py_isabs(path)) {
+         *abspath_p = _PyMem_RawWcsdup(path);
+         return 0;
+-- 
+2.50.1 (Apple Git-155)
+

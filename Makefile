@@ -21,7 +21,7 @@ B         = build/m68k
 H         = build/host
 J        ?= -j4
 
-.PHONY: all fetch patches cc1 test-gcc-btst host host-test test-stack test-wcstol test-inet test-getentropy compat m68k check-m68k zip dist dist-host-check clean
+.PHONY: all fetch patches cc1 test-gcc-btst host host-test test-stack test-amiga-path test-wcstol test-inet test-getentropy compat m68k check-m68k zip dist dist-host-check clean
 all: m68k
 
 # ---- upstream + our patch series ---------------------------------------------
@@ -51,10 +51,14 @@ test-getentropy: tests/getentropy_test.c amiga/compat/getentropy.c
 	cc -Wall -Dgetentropy=amiga_getentropy -c -o $(H)/getentropy_amiga.o amiga/compat/getentropy.c
 	cc -Wall -o $(H)/getentropy_test tests/getentropy_test.c $(H)/getentropy_amiga.o
 	$(H)/getentropy_test
-host-test: host test-stack test-wcstol test-inet test-getentropy
+host-test: host test-stack test-amiga-path test-wcstol test-inet test-getentropy
 	tools/host-tests.sh
 test-stack: $(H)/stack_limits_test
 	$(H)/stack_limits_test
+test-amiga-path: tests/amiga_path_test.c $(SRC)/Include/internal/pycore_amigaos.h
+	mkdir -p $(H)
+	cc -Wall -I$(SRC)/Include/internal -o $(H)/amiga_path_test tests/amiga_path_test.c
+	$(H)/amiga_path_test
 test-wcstol: tests/wcstol_test.c amiga/compat/wcstol.c
 	mkdir -p $(H)
 	cc -Wall -Dwcstol=amiga_wcstol -c -o $(H)/wcstol_amiga.o amiga/compat/wcstol.c

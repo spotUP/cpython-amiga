@@ -16,7 +16,8 @@ OUT=$HB/tests-out
 EXPECTED=$ROOT/tests/c0-expected.tsv
 C0="test_json test_re test_posixpath test_genericpath test_io test_struct
 test_math test_time test_select test_subprocess
-tests/test_c0_config.py tests/test_c2_import_case.py"
+tests/test_c0_config.py tests/test_c2_import_case.py
+tests/test_w35_exec_bare_name.py tests/test_w35_abspath.py"
 mkdir -p "$OUT"
 touch "$LOG"
 
