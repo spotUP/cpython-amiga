@@ -16,6 +16,9 @@ Commands: `RULES.md`.
 Finish line for this session: C0 green and recorded; C1 linked m68k binary with measured
 sizes; C2 patches in with their tests; C3 written as owner steps. C4/C5 only after that.
 
+**W35 (2026-10-05): 4 of 4 rig bugs fixed and host/cross-tested, rig rerun pending** -- see
+section "W35 fixes" (steps for the main session there).
+
 **Status: 19 of 24 done, 5 open** -- C3.2 (owner run), C4.1-C4.3 (code in and host-proven,
 the Amiga run is the sentinel's job), C5.1 (Amiga regression subset, not started).
 
@@ -122,7 +125,8 @@ Commits: outer repo (this one) and `vendor/cpython` branch `amiga-3.14` (= `patc
 
 ### C4/C5 -- 0 of 4 done (code for C4 is in; the Amiga run decides)
 - [~] C4.1 subprocess on vfork: patch 0008; host proof runs test_subprocess through the
-      vfork-only code (pass*). Amiga: sentinel line "subprocess over vfork".
+      vfork-only code (pass*). Amiga: sentinel line "subprocess over vfork". Rig 2026-10-04:
+      FileNotFoundError(2) = the name lookup, not vfork (W35-2, patch 0010); rerun pending.
 - [~] C4.2 socket with getaddrinfo: neovim-amiga compat `netdb.o` linked; inet_ntop/pton
       added (`make test-inet`). Amiga: sentinel lines (need a TCP/IP stack running).
 - [~] C4.3 select: linked; host test_select pass. Amiga: sentinel "select on a pipe".
@@ -172,7 +176,7 @@ the HACL hashes (~400 K; without them `import hashlib` logs errors), pyexpat (xm
 | locale.nl_langinfo (ixemul has 8 of ~55 items) | config.site | nl_langinfo; `locale.getencoding()` answers utf-8 |
 | os.RTLD_*, dlopen (no dynamic loading) | config.site | C extension modules not built in (C4a: LoadSeg plugins) |
 | IPv6 (`--disable-ipv6`), inet_pton/ntop AF_INET6 -> EAFNOSUPPORT | amiga/compat/inet.c | IPv6 sockets |
-| `Vol:path` strings in os.path (posixpath sees `:` as a name char) | -- | `os.path.join("Work:", "x")`; use `/Work/x` (O-5) |
+| `Vol:path` strings in os.path (posixpath sees `:` as a name char); argv[0], the script argument and sys.executable ARE converted to `/Vol/...` (W35-3/4, patch 0012) | -- | `os.path.join("Work:", "x")`; use `/Work/x` (O-5) |
 | FPU build | D-6 | inline 68881 math (O-1) |
 
 ## C1a: what geekychris/python-amigaos4 (3.12.7, OS4 PPC, newlib) does, read 2026-10-04
@@ -192,6 +196,19 @@ Cloned to the session scratchpad; patches read, nothing built.
 - MorphOS SDK 3.14.4 patches: not looked for this session.
 
 ## Requests (not done here)
+
+For **bebbo's gcc / the installed toolchain** (`~/opt/amiga`, built by `~/Code/amiga-gcc`):
+- **G-1** `amiga/gcc/0001`: `*tst_bftst_mem{,1,2}` emit `btst #7-P` on the first byte for
+  a one-bit test at position P of an HImode/SImode memory operand: P >= 8 tests the wrong
+  bit (`flags & 1` on an int argument -> `btst #-24,(16,a5)` = bit 24). Needs -m68020+
+  (TARGET_BITFIELD); -m68000 code cannot hit it. This repo builds its own cc1 with the
+  patch (`make cc1`, `build/gcc/bin/cc1`, used through `-B`); the installed one is
+  untouched. Owner decision **O-7**: rebuild the installed toolchain with the patch (and
+  send it upstream to bebbo). Until then every other project built with
+  `m68k-amigaos-gcc -m68020*` may carry the same miscompile (UNVERIFIED: not checked;
+  how to check: `tools/check-m68k.sh`'s G-1 test idea, or compare objects built with
+  `-B<this repo>/build/gcc/bin/` against the installed cc1 -- here 2 of 225 objects
+  differed, both this bug).
 
 For **ixemul-vtcon** (belong in the SDK; each is a workaround here until then):
 - **X1** `<stddef.h>` offsetof as `__builtin_offsetof` (the null-pointer cast is not an
@@ -221,6 +238,10 @@ For **neovim-amiga** compat (outside this repo; needs the owner's go-ahead):
   still starts on the hash-seed path only if that is split from os.urandom -- a patch).
 - **O-5** Amiga-style `Vol:path` in os.path (OS4 port's approach) or document `/Vol/path`.
 - **O-6** stdlib zip at -O0 (10.1 MB) or -O2 (8.7 MB, no docstrings/asserts).
+- **O-7** Install the G-1 gcc fix into `~/opt/amiga` (rebuild via `~/Code/amiga-gcc` with
+  `amiga/gcc/0001`) and report it to bebbo? Recommended: yes -- every -m68020 build on this
+  Mac (neovim-amiga, ixemul-vtcon, vtcon's gcc parts) uses the faulty cc1; this repo then
+  drops `-B`. Outside this repo: the owner's call.
 
 ## C3 owner steps (on an Amiga; this repo's agent never runs them)
 
@@ -260,6 +281,63 @@ ixemul.library in LIBS:, vsh). A TCP/IP stack only for the optional socket lines
      contiguous block -- retry right after a reboot.
    Known not-a-bug: `os.fork` is missing; `Thread.start()` raises RuntimeError.
 
+## W35 fixes from the rig's C3 run (2026-10-05, branch `py1-w35-fixes`) -- 4 of 4 coded, 0 of 4 rig-verified
+
+- [x] W35-1 **stdout as reprs** -- root cause: a gcc 6.5 miscompile, not the io stack.
+      `PyFile_WriteObject`'s `flags & Py_PRINT_RAW` compiled to `btst #-24,a5@(16)` (bit 24 of
+      `flags`), always false, so print() wrote `repr()` of each argument and of `end`; the io
+      stack WAS installed. Fix: G-1 (`amiga/gcc/0001`, `make cc1`, `-B` in configure and
+      compat flags; a configure run now recompiles every object). Measured: old vs new cc1
+      over 225 objects = 2 code changes, `PyFile_WriteObject` and `PyObject_Print`, nothing
+      else (compat objects identical). Test: `make check-m68k` G-1 lines (tests/gcc_btst.c and
+      the linked `fileobject.o`; both FAIL with the installed cc1) -- f502c19.
+- [x] W35-2 **subprocess FileNotFoundError(2)** -- root cause: CPython's exec lookup joins a
+      bare name to each $PATH entry (`/bin/echo`, `/usr/bin/echo` with no PATH set) and never
+      lets ixemul's execve() do the AmigaDOS lookup (resident list, then the shell's command
+      path). Fix: patch 0010, bare name first on AmigaOS in subprocess and os._execvpe (as
+      ixemul's execvp). Also: `echo` is a shell built-in on OS 3.x (no C:Echo file, and
+      ixemul's FindSegment(name, 0, 0) skips internal commands), so the sentinel now runs
+      `which which` (C:Which). Test: tests/test_w35_exec_bare_name.py (host, 7) -- 70c2a95.
+- [x] W35-3 **sys.executable '/Ram Disk//Python3:bin/python3'** -- root cause: `_Py_abspath()`
+      treated the AmigaDOS-absolute argv[0] as relative and joined it to ixemul's cwd
+      "/Ram Disk/" (which ends in '/': hence '//'). Fix: patch 0012 converts "Vol:dir/f" to
+      "/Vol/dir/f" (PROGDIR: and ":" through NameFromLock), getpath's real_executable from
+      GetProgramDir()+GetProgramName() (covers a bare `python3` found on the command path);
+      patch 0011 no '//' after a cwd ending in '/'. Tests: `make test-amiga-path` (pure
+      helpers), tests/test_w35_abspath.py (host '//' case, fails without 0011) -- baf672a.
+- [x] W35-4 **Vol:path argv** (`python3 Python3:c3-sentinel.py` rc 2) -- same root as W35-3:
+      `config_run_filename_abspath()` made it "/Ram Disk//Python3:c3-sentinel.py". Fixed by
+      patch 0012; sentinel line "script path in Unix form (Vol:path argv)" -- baf672a.
+- [ ] W35-R rig run of the steps below (main session).
+
+Built (2026-10-05 12:48, from baf672a + this ledger's sentinel): `build/m68k/dist/Python3/`
+(`bin/python3` 5,243,984 bytes, `lib/python314.zip`, `c3-sentinel.py`), `build/gcc/bin/cc1`.
+Host: `make check-m68k` all OK, `make dist-host-check` OK, `make test-amiga-path` OK,
+host-tests W35 + c0_config + c2 pass, `tools/fetch-cpython.sh` recreates the tree (identical).
+
+### W35 rig steps (main session; one emulator)
+
+1. Copy from `~/Code/cpython-amiga/build/m68k/dist/Python3/` onto the rig, replacing the old
+   files: `bin/python3` -> `VTC:Python3/bin/python3`, `lib/python314.zip` ->
+   `VTC:Python3/lib/python314.zip`, `c3-sentinel.py` -> `VTC:Python3/c3-sentinel.py`.
+   As before: `Assign Python3: VTC:Python3`, `Stack 1100000`, AmigaShell, `cd RAM:`.
+2. `Python3:bin/python3 -c "print('hello', 1)"`
+   PASS: `hello 1` on one line. FAIL (old): `'hello'' ''1''\n'`-style reprs.
+3. `Python3:bin/python3 -c "import sys; print(sys.executable)"`
+   PASS: `/Python3/bin/python3`. FAIL (old): `/Ram Disk//Python3:bin/python3`.
+4. `Python3:bin/python3 Python3:c3-sentinel.py` (the Vol:path argument itself is W35-4)
+   PASS: the script runs (old: rc 2, "can't open file"), every line `OK` (INFO lines fine
+   without TCP/IP), among them `OK   print writes str, not repr (gcc btst fix)`,
+   `OK   sys.executable in Unix form, exists: /Python3/bin/python3`,
+   `OK   script path in Unix form (Vol:path argv): /Python3/c3-sentinel.py`,
+   `OK   subprocess over vfork (C4.1), bare name on the command path: ...` (C:Which prints
+   `C:Which`). If that line FAILs with rc 0 and empty stdout, the lookup worked and the
+   capture of a native program's output through ixemul's pipe is the next suspect.
+5. Bare name + program directory: `cd Python3:bin`, then
+   `python3 -c "import sys; print(sys.executable)"`
+   PASS: `/VTC/Python3/bin/python3` (real_executable from GetProgramDir: the volume path).
+6. Send back the full output of 2-5 (each start takes ~36 s on the rig).
+
 ## Gotchas
 
 - macOS is case-insensitive: `python` would collide with `Python/`; the build target is
@@ -273,6 +351,11 @@ ixemul.library in LIBS:, vsh). A TCP/IP stack only for the optional socket lines
   `libintl.h`, `sys/statvfs.h`, `sys/lock.h`, `pthread.h`: answered `no` in config.site.
 - ixemul's libc.a stubs: LVO = -6 * (syscall.def number + 4) (Open/Close/Expunge/Reserved).
 - The host test machine ran with load average ~100 during test_subprocess (hot Mac): -j4 only.
+- The installed cc1 miscompiles bit tests (G-1): m68k code is compiled with `build/gcc/bin/cc1`
+  (`make cc1`; the driver takes it through `-B`). A configure run deletes all CPython objects,
+  because neither a new cc1 nor an unchanged pyconfig.h would trigger a recompile.
+- `os` (and the other startup modules) are FROZEN into the binary: a change to `Lib/os.py`
+  needs a rebuild (`make host` / `make m68k`), the zip alone does not carry it.
 
 ## C3 run on the rig (main session, 2026-10-04 23:35-23:44)
 

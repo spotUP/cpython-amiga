@@ -8,6 +8,19 @@ def check(name, cond, detail=""):
     print(("OK   " if cond else "FAIL ") + name + (": " + str(detail) if detail else ""))
 
 check("platform is amigaos", sys.platform == "amigaos", sys.platform)
+# W35: print() wrote repr()s ('x''\n') -- gcc's btst miscompile of
+# `flags & Py_PRINT_RAW` (amiga/gcc/0001). Checked from inside as well.
+import io
+buf = io.StringIO()
+print("x", 1, file=buf)
+check("print writes str, not repr (gcc btst fix)", buf.getvalue() == "x 1\n", repr(buf.getvalue()))
+# W35: sys.executable was '/Ram Disk//Python3:bin/python3', and
+# `python3 Python3:c3-sentinel.py` could not open the script
+check("sys.executable in Unix form, exists",
+      sys.executable.startswith("/") and ":" not in sys.executable
+      and "//" not in sys.executable and os.path.isfile(sys.executable), sys.executable)
+check("script path in Unix form (Vol:path argv)",
+      __file__.startswith("/") and ":" not in __file__ and os.path.isfile(__file__), __file__)
 check("UTF-8 locale and file system encoding",
       sys.getfilesystemencoding() == "utf-8" and sys.flags.utf8_mode == 1,
       (sys.getfilesystemencoding(), sys.flags.utf8_mode))
@@ -54,11 +67,17 @@ try:
 except ImportError:
     check("import JSON fails", True)
 import subprocess
+# a bare AmigaDOS command (C:Which; Echo is a shell built-in, no file) found
+# through ixemul's execve(): resident list, then the shell's command path.
+# (PATH only for the host run, `env -i`: there `which` searches it.)
 try:
-    r = subprocess.run(["echo", "vfork ok"], capture_output=True, text=True, timeout=60)
-    check("subprocess over vfork (C4.1)", r.stdout.strip() == "vfork ok", (r.returncode, r.stdout, r.stderr))
+    r = subprocess.run(["which", "which"], capture_output=True, text=True, timeout=60,
+                       env={**os.environ, "PATH": os.environ.get("PATH") or os.defpath})
+    check("subprocess over vfork (C4.1), bare name on the command path",
+          r.returncode == 0 and r.stdout.strip().lower().endswith("which"),
+          (r.returncode, r.stdout, r.stderr))
 except Exception as e:
-    check("subprocess over vfork (C4.1)", False, repr(e))
+    check("subprocess over vfork (C4.1), bare name on the command path", False, repr(e))
 # C4.2/C4.3: select over a pipe (ixemul select), sockets need a TCP/IP
 # stack (Roadshow/AmiTCP) running: without one they print INFO, not FAIL
 import select, socket
