@@ -1,7 +1,7 @@
 From df13a549aae46085ee937caf420628c46a3c35ce Mon Sep 17 00:00:00 2001
 From: spotUP <retroranksmail@gmail.com>
 Date: Sun, 4 Oct 2026 21:19:06 +0200
-Subject: [PATCH 04/12] gh-127545: Specify minimum PyGC_Head and PyObject
+Subject: [PATCH 04/13] gh-127545: Specify minimum PyGC_Head and PyObject
  alignment (backport)
 
 Backport of python/cpython#135209 (merged to main for 3.15; the 3.13 and

@@ -1,7 +1,7 @@
 From 94976e0c20f270d07cee6350c7f815c7889b6448 Mon Sep 17 00:00:00 2001
 From: spotUP <retroranksmail@gmail.com>
 Date: Mon, 5 Oct 2026 12:49:54 +0200
-Subject: [PATCH 12/12] AmigaOS: AmigaDOS-absolute paths in _Py_abspath,
+Subject: [PATCH 12/13] AmigaOS: AmigaDOS-absolute paths in _Py_abspath,
  real_executable from DOS
 
 An AmigaDOS shell passes argv[0] and file arguments as typed:

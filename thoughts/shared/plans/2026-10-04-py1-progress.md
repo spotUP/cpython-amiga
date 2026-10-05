@@ -308,14 +308,31 @@ ixemul.library in LIBS:, vsh). A TCP/IP stack only for the optional socket lines
 - [x] W35-4 **Vol:path argv** (`python3 Python3:c3-sentinel.py` rc 2) -- same root as W35-3:
       `config_run_filename_abspath()` made it "/Ram Disk//Python3:c3-sentinel.py". Fixed by
       patch 0012; sentinel line "script path in Unix form (Vol:path argv)" -- baf672a.
-- [ ] W35-R rig run of the steps below (main session).
+- [ ] W35-R rig run of the steps below (main session). Run 1 (2026-10-05, build 12:48, rig
+      volume VTCX): print, sys.executable, Vol:path script, PROGDIR/bare python3 PASS
+      (`/VTCX/Python3/bin/python3`), sentinel all OK except the subprocess line:
+      FileNotFoundError(2) for `which` by bare name.
+- [x] W35-2b **bare name still not found** -- root cause: ixemul's execve() of a bare name
+      walks only the shell's Path list (`cli_CommandDir`, __load_seg.c); C: is searched by
+      the shell implicitly and is not on that list unless the Startup-Sequence adds it.
+      ixemul's own execvp() covers C: with `_PATH_DEFPATH` "/usr/bin:/bin:/c" when PATH is
+      unset; CPython's default was '/bin:/usr/bin'. Fix: patch 0013, `posixpath.defpath` =
+      ixemul's value on AmigaOS (os.defpath, subprocess, os.execvp, shutil.which). posixpath
+      is frozen: binary rebuilt. Test: tests/test_w35_exec_bare_name.py
+      DefaultExecPathOnAmigaOS (fails on the old frozen posixpath). UNVERIFIED on the rig:
+      that the rig's Path list lacks C: (inferred from the code, not read); if ENV:PATH is
+      set, it wins over defpath -- the sentinel's FAIL detail now prints PATH and the exec
+      path.
 
-Built (2026-10-05 12:48, from baf672a + this ledger's sentinel): `build/m68k/dist/Python3/`
+Built (2026-10-05 13:04, with patch 0013; first build 12:48 without it): `build/m68k/dist/Python3/`
 (`bin/python3` 5,243,984 bytes, `lib/python314.zip`, `c3-sentinel.py`), `build/gcc/bin/cc1`.
 Host: `make check-m68k` all OK, `make dist-host-check` OK, `make test-amiga-path` OK,
 host-tests W35 + c0_config + c2 pass, `tools/fetch-cpython.sh` recreates the tree (identical).
 
 ### W35 rig steps (main session; one emulator)
+
+Rerun after 0013 (only the subprocess line was open): copy the new `bin/python3` and
+`c3-sentinel.py` (step 1; the zip is unchanged in substance but copy it too), then step 4.
 
 1. Copy from `~/Code/cpython-amiga/build/m68k/dist/Python3/` onto the rig, replacing the old
    files: `bin/python3` -> `VTC:Python3/bin/python3`, `lib/python314.zip` ->

@@ -1,7 +1,7 @@
 From 1f77f13336f3614b4e1e0b6ccfe06ce2ee143054 Mon Sep 17 00:00:00 2001
 From: spotUP <retroranksmail@gmail.com>
 Date: Sun, 4 Oct 2026 21:18:08 +0200
-Subject: [PATCH 03/12] AmigaOS: C stack limits from the task, $STACK: cookie
+Subject: [PATCH 03/13] AmigaOS: C stack limits from the task, $STACK: cookie
 
 3.14 checks the C stack pointer against the thread's stack bounds;
 without OS bounds it assumes 4 MB below the first page it sees, which on

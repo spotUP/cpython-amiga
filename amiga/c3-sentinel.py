@@ -77,7 +77,8 @@ try:
           r.returncode == 0 and r.stdout.strip().lower().endswith("which"),
           (r.returncode, r.stdout, r.stderr))
 except Exception as e:
-    check("subprocess over vfork (C4.1), bare name on the command path", False, repr(e))
+    check("subprocess over vfork (C4.1), bare name on the command path", False,
+          (repr(e), "PATH=%r" % os.environ.get("PATH"), os.get_exec_path()))
 # C4.2/C4.3: select over a pipe (ixemul select), sockets need a TCP/IP
 # stack (Roadshow/AmiTCP) running: without one they print INFO, not FAIL
 import select, socket

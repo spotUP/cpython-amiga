@@ -1,7 +1,7 @@
 From 6ca9664b76689cbd83e47943652b4b1ddb70fd04 Mon Sep 17 00:00:00 2001
 From: spotUP <retroranksmail@gmail.com>
 Date: Mon, 5 Oct 2026 12:49:54 +0200
-Subject: [PATCH 11/12] _Py_abspath: no "//" when the current directory ends
+Subject: [PATCH 11/13] _Py_abspath: no "//" when the current directory ends
  with a separator
 
 The join always added SEP, so a relative path made absolute in "/" read

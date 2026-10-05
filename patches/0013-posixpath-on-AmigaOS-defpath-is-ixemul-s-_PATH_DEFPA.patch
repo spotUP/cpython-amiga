@@ -1,0 +1,41 @@
+From 07db11fee241bc4e71236539a0528829f8821446 Mon Sep 17 00:00:00 2001
+From: spotUP <retroranksmail@gmail.com>
+Date: Mon, 5 Oct 2026 13:03:55 +0200
+Subject: [PATCH 13/13] posixpath: on AmigaOS defpath is ixemul's
+ _PATH_DEFPATH, with C:
+
+With patch 0010 the rig still could not run `which` by bare name:
+ixemul's execve() walks only the shell's Path list, and C: (where Which and
+the other AmigaDOS commands live) is searched by the shell implicitly, not
+from that list. ixemul's own execvp() therefore falls back to
+_PATH_DEFPATH "/usr/bin:/bin:/c" when PATH is unset; CPython used
+'/bin:/usr/bin'. Use ixemul's value on AmigaOS (os.defpath, the exec
+lookup, shutil.which).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01XtgdajdQMdzshhCNNkoeFN
+---
+ Lib/posixpath.py | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/Lib/posixpath.py b/Lib/posixpath.py
+index ad86cc0..0695763 100644
+--- a/Lib/posixpath.py
++++ b/Lib/posixpath.py
+@@ -29,6 +29,13 @@
+ import genericpath
+ from genericpath import *
+ 
++if sys.platform == 'amigaos':
++    # ixemul's _PATH_DEFPATH, which its own execvp() walks when PATH is
++    # unset: "/c" is C:, where the AmigaDOS commands live. execve() of a
++    # bare name walks only the shell's Path list, and C: is not on it unless
++    # the Startup-Sequence put it there -- the shell searches C: implicitly.
++    defpath = '/usr/bin:/bin:/c'
++
+ __all__ = ["normcase","isabs","join","splitdrive","splitroot","split","splitext",
+            "basename","dirname","commonprefix","getsize","getmtime",
+            "getatime","getctime","islink","exists","lexists","isdir","isfile",
+-- 
+2.50.1 (Apple Git-155)
+

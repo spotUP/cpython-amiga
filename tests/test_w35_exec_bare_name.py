@@ -73,5 +73,29 @@ class BareNameFirstOnAmigaOS(unittest.TestCase):
         self.assertEqual(self.child(EXECVP, "w35-no-such-command", True), "FileNotFoundError 2")
 
 
+class DefaultExecPathOnAmigaOS(unittest.TestCase):
+    """With PATH unset, the exec lookup walks os.defpath. On AmigaOS it is
+    ixemul's _PATH_DEFPATH "/usr/bin:/bin:/c": C: holds the AmigaDOS
+    commands (C:Which), and ixemul's execve() of a bare name walks only the
+    shell's Path list, which need not contain C: (the rig's did not: the
+    sentinel's `which which` was FileNotFoundError(2) after patch 0010)."""
+
+    def exec_path(self, amiga):
+        code = ("import sys, importlib\n"
+                "if {amiga}: sys.platform = 'amigaos'\n"
+                "import posixpath, os\n"
+                "importlib.reload(posixpath); importlib.reload(os)\n"
+                "print(os.defpath, os.get_exec_path({{}}))\n").format(amiga=amiga)
+        out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+        self.assertEqual(out.stderr, "")
+        return out.stdout.strip()
+
+    def test_amigaos_default_path_reaches_c(self):
+        self.assertEqual(self.exec_path(True), "/usr/bin:/bin:/c ['/usr/bin', '/bin', '/c']")
+
+    def test_posix_default_path_unchanged(self):
+        self.assertEqual(self.exec_path(False), "/bin:/usr/bin ['/bin', '/usr/bin']")
+
+
 if __name__ == "__main__":
     unittest.main()
