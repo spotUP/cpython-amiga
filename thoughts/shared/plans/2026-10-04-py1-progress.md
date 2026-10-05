@@ -358,6 +358,35 @@ Rerun after 0013 (only the subprocess line was open): copy the new `bin/python3`
    PASS: `/VTC/Python3/bin/python3` (real_executable from GetProgramDir: the volume path).
 6. Send back the full output of 2-5 (each start takes ~36 s on the rig).
 
+## G-2: sum(range(200000)) -> SystemError "returned NULL without setting an exception" (2026-10-05, branch `py1-sum-null`)
+
+- [x] Root cause: a second bebbo gcc 6.5 miscompile, in the bbb pass `opt_strcpy`
+      (`gcc/bbb-opts.c`): it joins `move.l x,d0; move.l d0,Y; tst.l d0` into `move.l x,Y`
+      after asking NOTICE_UPDATE_CC whether the second move sets the flags -- without
+      resetting cc_status first. A move to an address register leaves cc_status alone, so
+      a stale value2 == d0 passed and the tst vanished after `move.l x,aN`, which sets no
+      flags. In sum()'s generic loop (`result = temp; if (result == NULL) break;` after a
+      Py_DECREF that called _Py_Dealloc) the bne then read the CCR the deallocator left:
+      result taken as NULL, returned without an exception. Only after the C-long fast path
+      overflows (sum > 2**31), hence small sums worked. Not the overflow builtins, not
+      libgcc. Found by reading builtin_sum's disassembly; reproduced in tests/gcc_cc0_movea.c,
+      bisected with -fbbb=<letter> to 's'.
+- [x] Fix: `amiga/gcc/0003` (CC_STATUS_INIT before NOTICE_UPDATE_CC, as the pass's other
+      users do); `make cc1`. Old/new cc1 over 228 objects: 3 changed -- bltinmodule.o
+      (sum), mathmodule.o (math.prod), _functoolsmodule.o (partial repr), the same 3 sites
+      tools/cc-after-call.py finds in the old build, 0 in the new.
+- [x] Tests: check-m68k G-2 lines (tests/gcc_cc0_movea.c through the build's cc1; every
+      CPython object scanned with tools/cc-after-call.py; both FAIL with the old cc1).
+      Sentinel lines: sum(range(200000)), int loop past 2**31, mul/add into PyLong,
+      factorial(25) == prod(range(1, 26)), bit_length, partial repr (host: all OK).
+- [ ] Rig: steps in the W35 rig section, step 4 (new sentinel lines).
+- **Owner (O-7 follow-up):** `~/opt/amiga`'s cc1 (the G-1 build installed 12:54) still has
+  this bug: install `build/gcc/bin/cc1` of 14:21 again (or rebuild amiga-gcc with
+  amiga/gcc/0001+0003). Other -m68020 projects built with it may carry the same
+  miscompile: `tools/cc-after-call.py` on their objects' `objdump -d` finds it.
+- Note: `build/gcc/src` was on branch `feature/m68k-btst-mem-bit` (34f82c7cf, someone's
+  upstream branch, kept intact); it is now back on `amiga-cpython` (+0003) for the build.
+
 ## Gotchas
 
 - macOS is case-insensitive: `python` would collide with `Python/`; the build target is
