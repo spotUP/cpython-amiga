@@ -1,7 +1,7 @@
 From 489916b034f53dcace98c651f0c2b328b7928ea5 Mon Sep 17 00:00:00 2001
 From: spotUP <retroranksmail@gmail.com>
 Date: Sun, 4 Oct 2026 21:18:07 +0200
-Subject: [PATCH 2/9] Stubbed pthreads outside WASI: own names, plain
+Subject: [PATCH 02/12] Stubbed pthreads outside WASI: own names, plain
  thread-locals
 
 - pthread_stubs.h: outside WASI the stub types and functions are renamed

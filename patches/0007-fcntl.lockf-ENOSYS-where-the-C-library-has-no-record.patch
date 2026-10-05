@@ -1,7 +1,7 @@
 From cc7ce8ac29b32368315694582c972cbb5d8b8252 Mon Sep 17 00:00:00 2001
 From: spotUP <retroranksmail@gmail.com>
 Date: Sun, 4 Oct 2026 22:04:46 +0200
-Subject: [PATCH 7/9] fcntl.lockf: ENOSYS where the C library has no record
+Subject: [PATCH 07/12] fcntl.lockf: ENOSYS where the C library has no record
  locks
 
 ixemul (AmigaOS) defines no F_SETLK/F_RDLCK: lockf() raises

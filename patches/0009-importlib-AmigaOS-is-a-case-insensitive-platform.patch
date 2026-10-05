@@ -1,7 +1,7 @@
 From 61e8a977f8cd0bd4209e0fa171a14266777072eb Mon Sep 17 00:00:00 2001
 From: spotUP <retroranksmail@gmail.com>
 Date: Sun, 4 Oct 2026 22:04:46 +0200
-Subject: [PATCH 9/9] importlib: AmigaOS is a case-insensitive platform
+Subject: [PATCH 09/12] importlib: AmigaOS is a case-insensitive platform
 
 AmigaDOS file systems are case-insensitive and case-preserving, like
 macOS's: honour PYTHONCASEOK there as on darwin.
