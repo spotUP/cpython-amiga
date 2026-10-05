@@ -45,6 +45,21 @@ except RecursionError:
     check("deep C recursion raises RecursionError", True)
 del x
 
+# G-2: int sums leaving the C fast path (sum() returned NULL: the bbb
+# flags-after-call miscompile, amiga/gcc/0003), and other big-int paths
+import functools
+check("sum(range(200000)) == 19999900000 (gcc bbb fix)", sum(range(200000)) == 19999900000)
+t = 0
+for i in range(70000):
+    t = t + i
+check("int add past 2**31 in a loop", t == 2449965000, t)
+check("int mul/add overflow into PyLong",
+      65536 * 65536 == 4294967296 and (2**31 - 1) + 1 == 2147483648 and 2**64 == 18446744073709551616)
+import math
+check("math.factorial(25), math.prod(range(1, 26))",
+      math.factorial(25) == 15511210043330985984000000 == math.prod(range(1, 26)))
+check("int.bit_length", (2**64).bit_length() == 65 and (-2**31).bit_length() == 32)
+check("functools.partial repr", repr(functools.partial(int, 1)).startswith("functools.partial("))
 import json, re, math, struct
 check("json round trip", json.loads(json.dumps({"a": [1, 2.5, "x"]})) == {"a": [1, 2.5, "x"]})
 check("re", re.sub(r"(\w+)@(\w+)", r"\2 at \1", "spot@amiga") == "amiga at spot")

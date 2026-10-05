@@ -9,6 +9,7 @@
 #        except the vetted wide-string ones), every stub on a 48.2
 #        vector, and the sizes
 #   G-1  the build's cc1 is the patched one and emits the right bit tests
+#   G-2  no conditional branch on condition codes a callee left
 # Prints one [OK]/[FAIL] line per check; exit status = number of failures.
 #   tools/check-m68k.sh [--gcc-only]
 set -u
@@ -32,9 +33,19 @@ chk "G-1 the driver runs build/gcc/bin/cc1" \
 chk "G-1 tests/gcc_btst.c: flags & 1 tests the low byte (btst #0,(19,a5))" \
   "$CCB -m68020-60 -O1 -S -o - '$ROOT/tests/gcc_btst.c' | grep -q 'btst #0,(19,a5)' && \
    ! $CCB -m68020-60 -O1 -S -o - '$ROOT/tests/gcc_btst.c' | grep -q 'btst #-'"
+# G-2: no branch on flags a callee left (amiga/gcc/0003, bbb opt_strcpy
+# dropped a tst after `move x,aN`): sum(range(200000)) returned NULL
+G2O=$ROOT/build/m68k/gcc_cc0_movea.o
+mkdir -p "$ROOT/build/m68k"
+chk "G-2 tests/gcc_cc0_movea.c: no branch on a callee's flags" \
+  "$CCB -m68020-60 -O2 -c -o '$G2O' '$ROOT/tests/gcc_cc0_movea.c' && \
+   $AMIGA/bin/m68k-amigaos-objdump -d '$G2O' | python3 '$ROOT/tools/cc-after-call.py'"
 [ "${1:-}" = "--gcc-only" ] && exit $fails
 
 [ -f "$EXE" ] && [ -f "$MAP" ] || { echo "[FAIL] build first: make m68k (needs $EXE and $MAP)"; exit 1; }
+chk "G-2 no CPython object branches on a callee's flags (tools/cc-after-call.py)" \
+  "( for o in \$(find '$B/Modules' '$B/Objects' '$B/Parser' '$B/Programs' '$B/Python' -name '*.o' ! -name frozen.o); do \
+     $AMIGA/bin/m68k-amigaos-objdump -d \$o | python3 '$ROOT/tools/cc-after-call.py' >&2 || exit 1; done )"
 chk "G-1 PyFile_WriteObject tests flags' low byte (Py_PRINT_RAW)" \
   "$AMIGA/bin/m68k-amigaos-objdump -d '$B/Objects/fileobject.o' | \
    awk '/<_PyFile_WriteObject>:/,/rts/' | grep -q 'btst #0,a5@(19)'"

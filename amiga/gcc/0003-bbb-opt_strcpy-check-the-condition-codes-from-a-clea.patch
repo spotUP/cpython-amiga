@@ -1,0 +1,39 @@
+From 7605bdb82207ff070d6295f8d25a129a9a623fe3 Mon Sep 17 00:00:00 2001
+From: cpython-amiga <noreply@anthropic.com>
+Date: Mon, 5 Oct 2026 14:20:32 +0200
+Subject: [PATCH] bbb opt_strcpy: check the condition codes from a clean
+ cc_status
+
+opt_strcpy joins `move x,dN; move dN,Y; tst dN` into `move x,Y` when
+NOTICE_UPDATE_CC says the second move sets the flags for dN. It did not
+reset cc_status first; a move to an address register leaves cc_status
+unchanged, so a stale value2 == dN from an earlier insn passed the check
+and the tst was dropped after `move x,aN`, which sets no flags. The
+branch then tested what a called function left in the CCR (CPython's
+sum(): `result = temp; if (!result) break;` after a Py_DECREF that called
+the deallocator: NULL without an exception). CC_STATUS_INIT first, as the
+other NOTICE_UPDATE_CC users in this file do.
+---
+ gcc/bbb-opts.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/gcc/bbb-opts.c b/gcc/bbb-opts.c
+index 32b2ab3d4..8c84940f9 100644
+--- a/gcc/bbb-opts.c
++++ b/gcc/bbb-opts.c
+@@ -3414,7 +3414,11 @@ opt_strcpy ()
+ //	      if (CONST_INT_P(src) && INTVAL(src) == 0 && find_reg_note (insn, REG_DEAD, dst))
+ 	      if (REG_P(dst) && REGNO(dst) == REGNO(theReg) && CONST_INT_P(src) && INTVAL(src) == 0 && is_reg_dead (REGNO(dst), index))
+ 		{
+-		  /* now check via NOTICE_UPDATE_CC*/
++		  /* now check via NOTICE_UPDATE_CC, from a clean state: a move
++		     to an address register leaves cc_status untouched, and a
++		     stale value2 == dst from an earlier insn made this merge
++		     `move x,aN` -- which sets no flags -- and drop the tst.  */
++		  CC_STATUS_INIT;
+ 		  NOTICE_UPDATE_CC(PATTERN (reg2x), reg2x);
+ 		  if (cc_status.flags == 0 && rtx_equal_p (dst, cc_status.value2))
+ 		    {
+-- 
+2.50.1 (Apple Git-155)
+
