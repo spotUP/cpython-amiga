@@ -40,3 +40,10 @@ CPython 3.14 for AmigaOS 3.x / 68020-68060 / ixemul 48.2 (UP-Term plan PY1, Trac
 | The C3 layout and command on the host binary | `make dist-host-check` |
 | On the Amiga (owner) | ledger, section "C3 owner steps" |
 | Clean | `make clean` |
+
+## Cross-repo changes
+
+A change that crosses two or more UP-Term repos is one commit per repo, all with the
+same subject line, plus one `repos.lock` update in the `upterm` meta-repo (re-pin with
+`bin/upterm-bootstrap --update`) carrying that subject line too. Release step:
+`upterm-bootstrap --update`, then `make dist` in vtcon; run `bin/upterm-doctor` first.
