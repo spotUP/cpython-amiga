@@ -1,11 +1,14 @@
 # CPython 3.14 for AmigaOS 3.x / 68020-68060 + FPU / ixemul (UP-Term PY1).
 # Cross build with bebbo's gcc 6.5; ledger:
 # thoughts/shared/plans/2026-10-04-py1-progress.md. Commands: RULES.md.
+# The workspace directory that holds this repo and its siblings (the upterm
+# meta-repo creates it); the sibling defaults below hang off it.
+UPTERM_ROOT ?= $(abspath $(CURDIR)/..)
 AMIGA    ?= $(HOME)/opt/amiga
 AGCC     ?= $(AMIGA)/bin/m68k-amigaos-gcc
 AAR      ?= $(AMIGA)/bin/m68k-amigaos-ar
 # the Neovim port's compat layer, compiled here with this build's flags (no copy)
-NVCOMPAT ?= $(HOME)/Code/neovim-amiga/amiga/compat
+NVCOMPAT ?= $(UPTERM_ROOT)/neovim-amiga/amiga/compat
 # code: 68020..68060, soft-float (decision D-6 in the ledger): ixemul.library
 # returns doubles in d0/d1, while gcc 6.5 with -m68881 expects them in fp0,
 # so an FPU build needs a return-ABI shim for every double-returning libc

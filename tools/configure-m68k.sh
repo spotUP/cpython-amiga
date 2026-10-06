@@ -7,7 +7,8 @@
 set -eu
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 AMIGA=${AMIGA:-$HOME/opt/amiga}
-NVCOMPAT=${NVCOMPAT:-$HOME/Code/neovim-amiga/amiga/compat}
+UPTERM_ROOT=${UPTERM_ROOT:-$(dirname "$ROOT")}
+NVCOMPAT=${NVCOMPAT:-$UPTERM_ROOT/neovim-amiga/amiga/compat}
 HOSTPY=${HOSTPY:-/opt/homebrew/bin/python3.14}
 ACPU=${ACPU:--m68020-60}
 B=$ROOT/build/m68k

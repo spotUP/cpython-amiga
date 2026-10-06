@@ -53,7 +53,7 @@ chk "G-1 PyFile_WriteObject tests flags' low byte (Py_PRINT_RAW)" \
 chk "C2.1 alignment asserts (tests/align_check.c)" \
   "$CCB -m68020-60 -std=c11 -fsyntax-only \
    -I$B/Include -I$B -I$ROOT/vendor/cpython/Include -I$ROOT/vendor/cpython/Include/internal \
-   -I$ROOT/amiga/include -I$HOME/Code/neovim-amiga/amiga/compat/include $ROOT/tests/align_check.c"
+   -I$ROOT/amiga/include -I${NVCOMPAT:-${UPTERM_ROOT:-$(dirname "$ROOT")}/neovim-amiga/amiga/compat}/include $ROOT/tests/align_check.c"
 chk "C2.3 __atomic_* come from libamigacompat.a(amiga-os.o)" \
   "grep -q 'libamigacompat.a(amiga-os.o)' '$MAP' && ! grep -q 'libatomic.a' '$MAP'"
 chk "C2.5 \$STACK: cookie in the executable" "strings -a '$EXE' | grep -qx '\\\$STACK: 1048576'"

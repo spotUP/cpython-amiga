@@ -11,7 +11,9 @@ include/sys/syscall.def. Exit status 1 on any mismatch.
 import re, subprocess, sys, os, collections
 AM = os.path.expanduser("~/opt/amiga/bin/")
 LIBC = os.path.expanduser("~/opt/amiga/m68k-amigaos/ixemul/lib/libc.a")
-DEF = os.path.expanduser("~/Code/ixemul-vtcon/include/sys/syscall.def")
+# the workspace directory holding the sibling repos (UPTERM_ROOT, default: the parent of this repo)
+UPTERM_ROOT = os.environ.get("UPTERM_ROOT") or os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+DEF = os.path.join(UPTERM_ROOT, "ixemul-vtcon/include/sys/syscall.def")
 MAP = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "build", "m68k", "python.map")
 defs = {}
 for m in re.finditer(r"SYSTEM_CALL\s*\((\w+)\s*,\s*(\d+)\)", open(DEF).read()):
