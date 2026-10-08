@@ -1,0 +1,37 @@
+From 0f254edcb68b120672a55e2fad4221998da4862c Mon Sep 17 00:00:00 2001
+From: cpython-amiga <cpython-amiga@localhost>
+Date: Thu, 8 Oct 2026 18:09:41 +0200
+Subject: [PATCH] bbb opt_strcpy: an earlier read of the register ends the
+ match
+
+opt_strcpy joins `move x,dN; move dN,Y; tst dN` into `move x,Y`. When the
+insn after a reg2x candidate was no compare, it dropped only reg2x and took
+the next `move dN,Z` as reg2x, keeping x2reg: `move x,dN; move dN,A;
+move dN,Z; tst dN` became `move dN,A; move x,Z`, and A got whatever dN held
+before. Start over instead (x2reg = 0 too).
+---
+ gcc/bbb-opts.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/gcc/bbb-opts.c b/gcc/bbb-opts.c
+index 15021201b..a8f8d74ea 100644
+--- a/gcc/bbb-opts.c
++++ b/gcc/bbb-opts.c
+@@ -3447,7 +3447,14 @@ opt_strcpy ()
+ 	      x2reg = 0;
+ 	      continue;
+ 	    }
++	  /* reg2x was no last use before the compare: it read the register,
++	     so x2reg's load must stay. Starting over with this insn as a new
++	     reg2x would delete that load and leave reg2x reading whatever the
++	     register held before (`move x,dN; move dN,A; move dN,B; tst dN`
++	     became `move dN,A; move x,B`: findutils 4.11's find saw garbage
++	     file types, upterm-ports 2026-10-08). */
+ 	  reg2x = 0;
++	  x2reg = 0;
+ 	}
+ 
+       /* check for reg2x first, maybe fallback to x2reg. */
+-- 
+2.50.1 (Apple Git-155)
+

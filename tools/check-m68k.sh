@@ -10,6 +10,7 @@
 #        vector, and the sizes
 #   G-1  the build's cc1 is the patched one and emits the right bit tests
 #   G-2  no conditional branch on condition codes a callee left
+#   G-3  a register's load stays while an earlier store reads it
 # Prints one [OK]/[FAIL] line per check; exit status = number of failures.
 #   tools/check-m68k.sh [--gcc-only]
 set -u
@@ -40,6 +41,11 @@ mkdir -p "$ROOT/build/m68k"
 chk "G-2 tests/gcc_cc0_movea.c: no branch on a callee's flags" \
   "$CCB -m68020-60 -O2 -c -o '$G2O' '$ROOT/tests/gcc_cc0_movea.c' && \
    $AMIGA/bin/m68k-amigaos-objdump -d '$G2O' | python3 '$ROOT/tools/cc-after-call.py'"
+# G-3: bbb opt_strcpy deleted a load an earlier store still read (amiga/gcc/0004;
+# -m68020: the -m68020-60 schedule happens not to give the pattern)
+chk "G-3 tests/gcc_strcpy_reuse.c: *p is loaded before it is stored to a" \
+  "$CCB -m68020 -O2 -S -o - '$ROOT/tests/gcc_strcpy_reuse.c' | \
+   awk '/^_f:/{f=1} f&&/[(]a0[)],d[0-7]\$/{l=1} f&&/,_a\$/{print (l?\"ok\":\"bad\"); exit}' | grep -qx ok"
 [ "${1:-}" = "--gcc-only" ] && exit $fails
 
 [ -f "$EXE" ] && [ -f "$MAP" ] || { echo "[FAIL] build first: make m68k (needs $EXE and $MAP)"; exit 1; }
