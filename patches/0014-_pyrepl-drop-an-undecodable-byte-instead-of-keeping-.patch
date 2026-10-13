@@ -1,0 +1,37 @@
+From fd33b4dd7e930a5f39f3e6806d64d36ad824cdae Mon Sep 17 00:00:00 2001
+From: spotUP <retroranksmail@gmail.com>
+Date: Tue, 13 Oct 2026 17:35:55 +0200
+Subject: [PATCH 14/14] _pyrepl: drop an undecodable byte instead of keeping it
+ in the event buffer
+
+A byte that is not UTF-8 (an 8-bit CSI, 0x9B) stayed in BaseEventQueue.buf and every later key was appended behind it, so none decoded again. Incomplete multibyte starts still wait; anything else is dropped and the rest replayed.
+---
+ Lib/_pyrepl/base_eventqueue.py | 12 +++++++++++-
+ 1 file changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/Lib/_pyrepl/base_eventqueue.py b/Lib/_pyrepl/base_eventqueue.py
+index 0589a0f..be476f1 100644
+--- a/Lib/_pyrepl/base_eventqueue.py
++++ b/Lib/_pyrepl/base_eventqueue.py
+@@ -103,7 +103,17 @@ def push(self, char: int | bytes) -> None:
+         else:
+             try:
+                 decoded = bytes(self.buf).decode(self.encoding)
+-            except UnicodeError:
++            except UnicodeError as e:
++                if isinstance(e, UnicodeDecodeError) and e.reason == 'unexpected end of data':
++                    return  # the start of a multibyte character: wait for the rest
++                # an undecodable byte (an 8-bit CSI, 0x9B, from a console):
++                # drop it and replay what followed, or every later key
++                # stays behind it and nothing more is ever decoded
++                trace('undecodable byte {b!r}, dropped', b=bytes(self.buf[:1]))
++                rest = self.flush_buf()[1:]
++                self.keymap = self.compiled_keymap
++                for _c in rest:
++                    self.push(_c)
+                 return
+             else:
+                 self.insert(Event('key', decoded, bytes(self.flush_buf())))
+-- 
+2.50.1 (Apple Git-155)
+
