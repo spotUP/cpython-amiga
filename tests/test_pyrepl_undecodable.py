@@ -31,9 +31,9 @@ def keys(q, data):
 
 
 class Undecodable(unittest.TestCase):
-    def test_a_later_key_arrives_after_an_8bit_csi(self):
+    def test_a_later_key_arrives_after_an_undecodable_byte(self):
         q = queue()
-        self.assertEqual(keys(q, b"\x9bA"), ["A"])
+        self.assertEqual(keys(q, b"\xffA"), ["A"])
         self.assertEqual(keys(q, b"x"), ["x"])
 
     def test_a_lead_byte_followed_by_ascii_keeps_the_ascii(self):

@@ -1,0 +1,79 @@
+From ebc9f972c8faa51ac97a94ce6897895a25493556 Mon Sep 17 00:00:00 2001
+From: spotUP <retroranksmail@gmail.com>
+Date: Tue, 13 Oct 2026 20:11:14 +0200
+Subject: [PATCH 15/15] _pyrepl: an 8-bit CSI/SS3 is its 7-bit pair; the
+ normal-mode arrows are always keys
+
+AmigaOS CON: sends the cursor keys as 0x9B (CSI) and 'A'..'D'. 0x9B is not
+UTF-8 and was dropped, 'A' was typed, and no history was recalled. With TERM
+unset the fallback terminfo is "dumb", which defines no keys; with TERM=vtcon
+kcuu1 is the application-mode ESC O A, which a console ignoring smkx never
+sends. At the start of a key 0x9B and 0x8F now push ESC [ and ESC O, and
+ESC [ A..D are keys unless terminfo already defines them.
+---
+ Lib/_pyrepl/base_eventqueue.py | 11 +++++++++++
+ Lib/_pyrepl/unix_eventqueue.py | 12 ++++++++++++
+ 2 files changed, 23 insertions(+)
+
+diff --git a/Lib/_pyrepl/base_eventqueue.py b/Lib/_pyrepl/base_eventqueue.py
+index be476f1..230b606 100644
+--- a/Lib/_pyrepl/base_eventqueue.py
++++ b/Lib/_pyrepl/base_eventqueue.py
+@@ -30,6 +30,11 @@
+ from .console import Event
+ from .trace import trace
+ 
++# A console may send a control as one 8-bit C1 byte (AmigaOS CON: sends CSI as
++# 0x9B, so Up is 0x9B 'A') where a terminal sends the 7-bit escape pair.
++C1_AS_ESCAPE = {0x9B: b'\x1b[', 0x8F: b'\x1bO'}  # CSI, SS3
++
++
+ class BaseEventQueue:
+     def __init__(self, encoding: str, keymap_dict: dict[bytes, str]) -> None:
+         self.compiled_keymap = keymap.compile_keymap(keymap_dict)
+@@ -75,6 +80,12 @@ def push(self, char: int | bytes) -> None:
+         """
+         assert isinstance(char, (int, bytes))
+         ord_char = char if isinstance(char, int) else ord(char)
++        if not self.buf and ord_char in C1_AS_ESCAPE:
++            # at the start of a key (not inside a multibyte character): the 7-bit
++            # form, which the keymap knows
++            for _c in C1_AS_ESCAPE[ord_char]:
++                self.push(_c)
++            return
+         char = ord_char.to_bytes()
+         self.buf.append(ord_char)
+ 
+diff --git a/Lib/_pyrepl/unix_eventqueue.py b/Lib/_pyrepl/unix_eventqueue.py
+index 2a9cca5..d217d0b 100644
+--- a/Lib/_pyrepl/unix_eventqueue.py
++++ b/Lib/_pyrepl/unix_eventqueue.py
+@@ -54,6 +54,16 @@
+     b'\033Oc': 'ctrl right',
+ }
+ 
++# The arrow keys of a terminal in normal cursor-key mode. terminfo wins where it
++# defines the key; a console that ignores smkx (AmigaOS CON:) or a TERM with no
++# terminfo (unset: the "dumb" fallback has no keys) still sends these.
++ANSI_ARROW_KEYCODES = {
++    b'\033[A': 'up',
++    b'\033[B': 'down',
++    b'\033[C': 'right',
++    b'\033[D': 'left',
++}
++
+ def get_terminal_keycodes(ti: TermInfo) -> dict[bytes, str]:
+     """
+     Generates a dictionary mapping terminal keycodes to human-readable names.
+@@ -65,6 +75,8 @@ def get_terminal_keycodes(ti: TermInfo) -> dict[bytes, str]:
+         if keycode:
+             keycodes[keycode] = key
+     keycodes.update(CTRL_ARROW_KEYCODES)
++    for keycode, key in ANSI_ARROW_KEYCODES.items():
++        keycodes.setdefault(keycode, key)
+     return keycodes
+ 
+ 
+-- 
+2.50.1 (Apple Git-155)
+
