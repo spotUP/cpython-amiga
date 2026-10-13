@@ -1,7 +1,7 @@
 From 07db11fee241bc4e71236539a0528829f8821446 Mon Sep 17 00:00:00 2001
 From: spotUP <retroranksmail@gmail.com>
 Date: Mon, 5 Oct 2026 13:03:55 +0200
-Subject: [PATCH 13/14] posixpath: on AmigaOS defpath is ixemul's
+Subject: [PATCH 13/15] posixpath: on AmigaOS defpath is ixemul's
  _PATH_DEFPATH, with C:
 
 With patch 0010 the rig still could not run `which` by bare name:

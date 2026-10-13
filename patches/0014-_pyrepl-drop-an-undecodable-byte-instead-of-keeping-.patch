@@ -1,7 +1,7 @@
 From fd33b4dd7e930a5f39f3e6806d64d36ad824cdae Mon Sep 17 00:00:00 2001
 From: spotUP <retroranksmail@gmail.com>
 Date: Tue, 13 Oct 2026 17:35:55 +0200
-Subject: [PATCH 14/14] _pyrepl: drop an undecodable byte instead of keeping it
+Subject: [PATCH 14/15] _pyrepl: drop an undecodable byte instead of keeping it
  in the event buffer
 
 A byte that is not UTF-8 (an 8-bit CSI, 0x9B) stayed in BaseEventQueue.buf and every later key was appended behind it, so none decoded again. Incomplete multibyte starts still wait; anything else is dropped and the rest replayed.
