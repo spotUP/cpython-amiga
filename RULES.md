@@ -1,7 +1,7 @@
 # cpython-amiga project rules
 
 CPython 3.14 for AmigaOS 3.x / 68020-68060 / ixemul 48.2 (UP-Term plan PY1, Track C of
-`~/Code/vtcon/thoughts/shared/research/2026-10-04_python-on-amigaos.md`). The global rules
+`~/Code/UP-Term/vtcon/thoughts/shared/research/2026-10-04_python-on-amigaos.md`). The global rules
 (`~/.claude/CLAUDE.md`) apply; this file adds the project's. The ledger is
 `thoughts/shared/plans/2026-10-04-py1-progress.md` (decisions, checklist, findings, owner steps).
 
