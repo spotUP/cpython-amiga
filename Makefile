@@ -24,7 +24,7 @@ B         = build/m68k
 H         = build/host
 J        ?= -j4
 
-.PHONY: all fetch patches test-gcc-btst host host-test test-stack test-amiga-path test-wcstol test-inet test-getentropy compat m68k check-m68k zip dist dist-host-check clean
+.PHONY: all fetch patches test-gcc-btst host host-test test-stack test-amiga-path test-wcstol test-inet test-getentropy test-newlibwcs compat m68k check-m68k zip dist dist-host-check clean
 all: m68k
 
 # ---- upstream + our patch series ---------------------------------------------
@@ -54,7 +54,18 @@ test-getentropy: tests/getentropy_test.c amiga/compat/getentropy.c
 	cc -Wall -Dgetentropy=amiga_getentropy -c -o $(H)/getentropy_amiga.o amiga/compat/getentropy.c
 	cc -Wall -o $(H)/getentropy_test tests/getentropy_test.c $(H)/getentropy_amiga.o
 	$(H)/getentropy_test
-host-test: host test-stack test-amiga-path test-wcstol test-inet test-getentropy
+# a changed WCS_FUNCS must rebuild libnewlibwcs.a; built in its own tree so
+# the real build's configure stamp ($(B)/Makefile) is not touched
+WCS_TEST_B = $(H)/newlibwcs-test
+test-newlibwcs:
+	$(MAKE) B=$(WCS_TEST_B) $(WCS_TEST_B)/libnewlibwcs.a
+	test "$$($(AAR) t $(WCS_TEST_B)/libnewlibwcs.a | wc -l)" -eq $(words $(WCS_FUNCS))
+	@# make compares whole seconds: a list changed in the archive's own second looks old
+	sleep 1
+	$(MAKE) B=$(WCS_TEST_B) WCS_FUNCS=wcslen $(WCS_TEST_B)/libnewlibwcs.a
+	test "$$($(AAR) t $(WCS_TEST_B)/libnewlibwcs.a)" = lib_a-wcslen.o
+	@echo '[OK] libnewlibwcs.a follows WCS_FUNCS'
+host-test: host test-stack test-amiga-path test-wcstol test-inet test-getentropy test-newlibwcs
 	tools/host-tests.sh
 test-stack: $(H)/stack_limits_test
 	$(H)/stack_limits_test
@@ -109,7 +120,13 @@ NEWLIBC   = $(AMIGA)/m68k-amigaos/lib/libc.a
 WCS_FUNCS = wcscat wcschr wcscmp wcscoll wcscpy wcscspn wcslcpy wcslen wcsncat \
             wcsncmp wcsncpy wcsnlen wcspbrk wcsrchr wcsspn wcsstr wcstok wcsxfrm \
             wmemchr wmemcmp wmemcpy wmemmove wmemset
-$(B)/libnewlibwcs.a: $(NEWLIBC)
+# the member list is a prerequisite too: libc.a's date does not move when the
+# list changes, and an archive built from an older list keeps stale members
+$(B)/newlibwcs.list: FORCE
+	@mkdir -p $(B)
+	@echo '$(NEWLIBC) $(WCS_FUNCS)' | cmp -s - $@ || echo '$(NEWLIBC) $(WCS_FUNCS)' > $@
+FORCE:
+$(B)/libnewlibwcs.a: $(NEWLIBC) $(B)/newlibwcs.list
 	rm -rf $(B)/newlibwcs && mkdir -p $(B)/newlibwcs
 	cd $(B)/newlibwcs && $(AAR) x $(NEWLIBC) $(addprefix lib_a-,$(addsuffix .o,$(WCS_FUNCS)))
 	rm -f $@
