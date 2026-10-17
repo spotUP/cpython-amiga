@@ -109,15 +109,9 @@ NEWLIBC   = $(AMIGA)/m68k-amigaos/lib/libc.a
 WCS_FUNCS = wcscat wcschr wcscmp wcscoll wcscpy wcscspn wcslcpy wcslen wcsncat \
             wcsncmp wcsncpy wcsnlen wcspbrk wcsrchr wcsspn wcsstr wcstok wcsxfrm \
             wmemchr wmemcmp wmemcpy wmemmove wmemset
-# complex functions ixemul's libm lacks: gcc -O2 fuses sin(x) and cos(x) of one
-# argument into a call to cexp (complexobject.c _Py_c_pow, cmathmodule.c).
-# cexp/cimag/creal are self-contained; they call exp, sin, cos from ixemul
-NEWLIBM   = $(AMIGA)/m68k-amigaos/lib/libm.a
-CPLX_FUNCS = cexp cimag creal
-$(B)/libnewlibwcs.a: $(NEWLIBC) $(NEWLIBM)
+$(B)/libnewlibwcs.a: $(NEWLIBC)
 	rm -rf $(B)/newlibwcs && mkdir -p $(B)/newlibwcs
 	cd $(B)/newlibwcs && $(AAR) x $(NEWLIBC) $(addprefix lib_a-,$(addsuffix .o,$(WCS_FUNCS)))
-	cd $(B)/newlibwcs && $(AAR) x $(NEWLIBM) $(addprefix lib_a-,$(addsuffix .o,$(CPLX_FUNCS)))
 	rm -f $@
 	$(AAR) rcs $@ $(B)/newlibwcs/*.o
 compat: $(B)/libamigacompat.a $(B)/libcpyamiga.a $(B)/libnewlibwcs.a
