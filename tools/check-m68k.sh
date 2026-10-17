@@ -28,9 +28,9 @@ chk()  { if eval "$2"; then ok "$1"; else bad "$1"; fi; }
 # G-1: the build's cc1 (amiga/gcc/0001) tests the right byte. Before the fix
 # `flags & 1` on an int argument was `btst #-24,(16,a5)` (bit 24), and
 # PyFile_WriteObject ignored Py_PRINT_RAW: print() wrote repr()s.
-CCB="$AMIGA/bin/m68k-amigaos-gcc -mcrt=ixemul -B$ROOT/build/gcc/bin/"
-chk "G-1 the driver runs build/gcc/bin/cc1" \
-  "[ \"\$($CCB -print-prog-name=cc1)\" = '$ROOT/build/gcc/bin/cc1' ]"
+CCB="$AMIGA/bin/m68k-amigaos-gcc -mcrt=ixemul"
+chk "G-1 the driver runs the installed cc1 (carries amiga/gcc patches)" \
+  "[ \"\$($CCB -print-prog-name=cc1)\" = '$AMIGA/libexec/gcc/m68k-amigaos/6.5.0b/cc1' ]"
 chk "G-1 tests/gcc_btst.c: flags & 1 tests the low byte (btst #0,(19,a5))" \
   "$CCB -m68020-60 -O1 -S -o - '$ROOT/tests/gcc_btst.c' | grep -q 'btst #0,(19,a5)' && \
    ! $CCB -m68020-60 -O1 -S -o - '$ROOT/tests/gcc_btst.c' | grep -q 'btst #-'"

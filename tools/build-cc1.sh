@@ -1,12 +1,13 @@
 #!/bin/sh
 # Build this port's cc1: bebbo's gcc 6.5 (amiga6, the commit the installed
 # toolchain was built from) plus amiga/gcc/*.patch, into build/gcc/bin/cc1.
-# The m68k build finds it with -B (tools/configure-m68k.sh, Makefile ACFLAGS);
-# the installed toolchain in $AMIGA stays untouched.
+# Nothing in this repo's build uses it any more (no -B).
 #   tools/build-cc1.sh            clone (if missing), patch, configure, build
-# Why: amiga/gcc/0001 -- the installed cc1 miscompiles `x & 1` on an int in
-# memory (btst #-24 on the first byte = bit 24). Request G-1 in the ledger:
-# the patch belongs in bebbo's gcc and then in the installed toolchain.
+# Why: amiga/gcc/*.patch are in the installed toolchain's cc1 since 2026-10-17
+# (together with the clr-merge and addx fixes, branch fix/zlib-o2); the m68k
+# build uses the installed cc1 and no longer links this one. Run this script
+# only to rebuild the cc1 for installation (copy build/gcc/bin/cc1 to
+# $AMIGA/libexec/gcc/m68k-amigaos/6.5.0b/cc1 yourself).
 set -eu
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 AMIGA=${AMIGA:-$HOME/opt/amiga}

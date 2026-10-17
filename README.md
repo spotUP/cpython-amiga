@@ -9,7 +9,6 @@ get the kit's `build/m68k/dist/Python3` (what vtcon's `make dist` copies,
 `PYTHON_DIST=`):
 
     tools/fetch-cpython.sh            # vendor/cpython: git clone of the v3.14.x tag (network) plus patches/
-    make cc1                          # this port's patched gcc cc1 (clones bebbo's gcc, branch amiga6, into build/gcc; network, long)
     make compat
     tools/configure-m68k.sh           # once
     make m68k zip dist

@@ -24,7 +24,7 @@ B         = build/m68k
 H         = build/host
 J        ?= -j4
 
-.PHONY: all fetch patches cc1 test-gcc-btst host host-test test-stack test-amiga-path test-wcstol test-inet test-getentropy compat m68k check-m68k zip dist dist-host-check clean
+.PHONY: all fetch patches test-gcc-btst host host-test test-stack test-amiga-path test-wcstol test-inet test-getentropy compat m68k check-m68k zip dist dist-host-check clean
 all: m68k
 
 # ---- upstream + our patch series ---------------------------------------------
@@ -71,23 +71,19 @@ $(H)/stack_limits_test: tests/stack_limits_test.c $(SRC)/Include/internal/pycore
 	mkdir -p $(H)
 	cc -Wall -I$(SRC)/Include/internal -o $@ tests/stack_limits_test.c
 
-# ---- G-1: this port's cc1 (bebbo's gcc + amiga/gcc/*.patch) ------------------
-# The installed cc1 tests the wrong byte for `x & 1` on an int in memory
-# (amiga/gcc/0001). Every m68k object is compiled with -B$(GCCB)/, which
-# makes the installed driver run this cc1. The installed toolchain is not
-# touched (request G-1 in the ledger).
-GCCB = $(CURDIR)/build/gcc/bin
-CC1  = $(GCCB)/cc1
-cc1: $(CC1)
-$(CC1): tools/build-cc1.sh $(wildcard amiga/gcc/*.patch)
-	tools/build-cc1.sh
-test-gcc-btst: $(CC1)
+# ---- G-1: the compiler ---------------------------------------------------------
+# amiga/gcc/*.patch (btst, opt_strcpy, fibonacci) and the clr-merge and addx
+# fixes are in the INSTALLED toolchain's cc1 since 2026-10-17; this port no
+# longer links a private cc1 through -B. CC1 is only a rebuild trigger: a new
+# installed cc1 recompiles every object. tools/build-cc1.sh rebuilds that cc1.
+CC1  = $(AMIGA)/libexec/gcc/m68k-amigaos/6.5.0b/cc1
+test-gcc-btst:
 	tools/check-m68k.sh --gcc-only
 
 # ---- compat: neovim-amiga's amiga/compat, built with this CPU/FPU ------------
 COMPAT_SRCS = netdb.c posix.c eprintf.c math.c
 COMPAT_OBJS = $(addprefix $(B)/compat/,$(COMPAT_SRCS:.c=.o)) $(B)/compat/amiga-os.o
-ACFLAGS     = -mcrt=ixemul -B$(GCCB)/ $(ACPU) -O2 -fno-strict-aliasing -Wall -Wno-unused
+ACFLAGS     = -mcrt=ixemul $(ACPU) -O2 -fno-strict-aliasing -Wall -Wno-unused
 $(B)/compat/%.o: $(NVCOMPAT)/%.c $(CC1)
 	@mkdir -p $(dir $@)
 	$(AGCC) $(ACFLAGS) -I$(NVCOMPAT)/include -c -o $@ $<
